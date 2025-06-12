@@ -1,62 +1,8 @@
-from typing import List, Union, Dict, Set
+from typing import List, Union, Dict
 import random
 from itertools import combinations
-from actions import Action, ActionType, create_action
-
-# Constants for card values
-CARD_VALUES = {
-    "A": 1, "2": 2, "3": 3, "4": 4, "5": 5,
-    "6": 6, "7": 7, "8": 8, "9": 9, "10": 10,
-    "J": 11, "Q": 12, "K": 13
-}
-
-SUITS = ["♠", "♥", "♦", "♣"]
-RANKS = list(CARD_VALUES.keys())
-
-
-class Card:
-    def __init__(self, rank: str, suit: str):
-        self.rank = rank
-        self.suit = suit
-        self.value = CARD_VALUES[rank]
-
-    def __repr__(self):
-        return f"{self.rank}{self.suit}"
-
-    def __lt__(self, other):
-        if isinstance(other, Card) or isinstance(other, Pile):
-            return self.value < other.value
-
-
-class Player:
-    def __init__(self, name: str):
-        self.name = name
-        self.hand: List[Card] = []
-        self.captured: List[Card] = []
-        self.sweeps: int = 0
-
-class Pile:
-
-    def __init__(self, creators: Set[Player], cards: List[Card], value: int):
-        self.creators: Set[Player] = creators
-        self.value = value
-        self.cards = cards
-
-        sum_of_cards = sum(card.value for card in cards)
-        self.doubled = False
-
-        if sum_of_cards % value == 0:
-            if sum_of_cards // value >= 2:
-                self.doubled = True
-        else:
-            raise ValueError("Bad Sum of Cards in Pile")
-
-    def __repr__(self):
-        return f"Pile of {self.value}: {self.cards}"
-
-    def __lt__(self, other):
-        if isinstance(other, Card) or isinstance(other, Pile):
-            return self.value < other.value
+from actions import create_action
+from models import Card, Pile, Action, ActionType, SUITS, RANKS, Player
 
 
 # Game class
@@ -64,10 +10,13 @@ class SweepGame:
     def __init__(self):
         self.deck: List[Card] = [Card(rank, suit) for suit in SUITS for rank in RANKS]
         self.table: List[Union[Card, Pile]] = []
-        self.players = [Player("Player 1"), Player("Player 2")]
+        self.players = [
+            Player("Player 1", is_ai=False),
+            Player("Player 2", is_ai=True),
+        ]
         self.round = 0 # Needed??
         self.piles: Dict[int, Pile] = {}
-        self.last_to_pick_up = None
+        self.last_to_pick_up: Player = None
         self.point_differential = 0
         self.turn = 1 if self.point_differential < 0 else 0  # Index of current player
 
@@ -77,88 +26,66 @@ class SweepGame:
             self.players[1 - self.turn].hand.append(self.deck[4:8])
             self.deck = self.deck[8:]
 
-    def setup_new_round(self):
+    def initialize_round(self):
+        # set initial instance variables
         self.deck = [Card(rank, suit) for suit in SUITS for rank in RANKS]
         self.table = []
         self.round += 1
         self.piles = {}
         self.last_to_pick_up = None
         self.turn = 1 if self.point_differential < 0 else 0  # Index of current player
+        for player in self.players:
+            player.hand = []
+            player.captured = []
+            player.sweeps = 0
 
-        while True:
-            random.shuffle(self.deck)
-            self.table = self.deck[:4]
-            self.players[self.turn].hand = self.deck[4:8]
-            self.players[1 - self.turn].hand = self.deck[8:12]
-            self.deck = self.deck[12:]
+        # Assign card points
+        for card in self.deck:
+            # SUITS[0] = spades, SUITS[2] = diamonds
+            if card.suit == SUITS[0] or card.value == 1:
+                card.points = card.value
+            elif card.value == 10 and card.suit == SUITS[2]:
+                card.points = 2
 
-            if any(card.value >= 9 for card in self.players[self.turn].hand):
-                break
+    def play_turn(self, declared_value = None):
+        action_options = self.get_valid_actions()
+        if declared_value:
+            action_options = [action for action in action_options if action.value == declared_value]
 
-    def first_move_finish_setup(self):
-        declared = max(card.value for card in self.players[self.turn].hand)
-        # Play the actual move
-        action_options = [action for action in self.get_valid_actions() if action.value == declared]
+        # Get player to select an action, default random option for now
+        action_to_play = random.choice(action_options)
+
+        print(action_to_play)
+
+        action_to_play.execute(self)
 
         self.turn = 1 - self.turn
+
+    def first_move(self):
+        while True:
+            random.shuffle(self.deck)
+            if any(card.value >= 9 for card in self.deck[4:8]):
+                self.players[self.turn].hand = self.deck[4:8]
+                del self.deck[4:8]
+                break
+
+        # Get actual declared value
+        declared = max(card.value for card in self.players[self.turn].hand)
+
+        self.table = self.deck[:4]
+        self.players[1 - self.turn].hand = self.deck[4:8]
+        del self.deck[:8]
+
+        self.play_turn(declared_value=declared)
 
         # Deal remaining cards for round one, starting with player who just played
         for i in range(2):
             self.players[1 - self.turn].hand += self.deck[:4]
             self.players[self.turn].hand += self.deck[4:8]
-            self.deck = self.deck[8:]
+            del self.deck[:8]
 
         for player in self.players:
             player.hand.sort()
-
-    def play_round(self):
-
-        self.players[self.turn].hand = [
-            Card("5", SUITS[0]),
-            Card("9", SUITS[0]),
-            Card("10", SUITS[3]),
-            Card("10", SUITS[0]),
-        ]
-
-        self.table = [
-            Card("A", SUITS[0]),
-            Card("3", SUITS[1]),
-            Card("7", SUITS[0]),
-            Card("7", SUITS[1]),
-            Card("10", SUITS[1]),
-            Card("10", SUITS[2]),
-        ]
-
-        # self.table.append(
-        #     Pile(self.players[1 - self.turn], [Card('7', SUITS[2]), Card('3', SUITS[0])], 10)
-        # )
-        self.table.append(
-            Pile(
-                self.players[1 - self.turn],
-                [
-                    Card("2", SUITS[3]),
-                    Card('7', SUITS[3]),
-                    Card('4', SUITS[3]),
-                    Card('5', SUITS[3]),
-                ], 9, True
-            )
-        )
-        # self.table.append(
-        #     Pile(self.players[self.turn], [Card('10', SUITS[2]), Card('3', SUITS[0])], 12)
-        # )
-
-        while len(self.players[self.turn].hand) > 0:
-            action_options = self.get_valid_actions()
-            # Get player to select an action, default first option for now
-            action_to_play = action_options[0]
-
-            # Perform action
-            action_to_play.execute()
-
-            self.turn = 1 - self.turn
-            break
-
-        pass
 
     def get_valid_actions(self):
         cards = self.players[self.turn].hand
@@ -260,16 +187,73 @@ class SweepGame:
 
                 if not invalid_combo:
                     unique_maximal_combos.append([card for summation in combo for card in summation] + equalities)
-        if not addition or addition_is_equal:
+
+        if not addition or (addition_is_equal and len(equalities) > 1):
             if not (unique_maximal_combos) and equalities:
                 unique_maximal_combos.append(equalities)
 
         return unique_maximal_combos
 
+    def end_round(self):
+        self.last_to_pick_up.captured += self.table
+
+        points_per_player = [sum(card.points for card in player.captured) + (50 * player.sweeps) for player in self.players]
+        if len(self.players[0].captured) > 26:
+            points_per_player[0] += 4
+        elif len(self.players[1].captured) > 26:
+            points_per_player[1] += 4
+        else:
+            points_per_player[0] += 2
+            points_per_player[1] += 2
+
+        print(points_per_player)
+
+        self.point_differential += (points_per_player[0] - points_per_player[1])
+
     def run_game(self):
-        self.setup_new_round()
-        self.first_move_finish_setup()
-        self.play_round()
+        # self.players[self.turn].hand = [
+        #     Card("5", SUITS[0]),
+        #     Card("9", SUITS[0]),
+        #     Card("10", SUITS[3]),
+        #     Card("10", SUITS[0]),
+        # ]
+
+        # self.table = [
+        #     Card("A", SUITS[0]),
+        #     Card("3", SUITS[1]),
+        #     Card("7", SUITS[0]),
+        #     Card("7", SUITS[1]),
+        #     Card("10", SUITS[1]),
+        #     Card("10", SUITS[2]),
+        # ]
+
+        # self.table.append(
+        #     Pile(self.players[1 - self.turn], [Card('7', SUITS[2]), Card('3', SUITS[0])], 10)
+        # )
+        # self.table.append(
+        #     Pile(
+        #         self.players[1 - self.turn],
+        #         [
+        #             Card("2", SUITS[3]),
+        #             Card('7', SUITS[3]),
+        #             Card('4', SUITS[3]),
+        #             Card('5', SUITS[3]),
+        #         ], 9, True
+        #     )
+        # )
+        # self.table.append(
+        #     Pile(self.players[self.turn], [Card('10', SUITS[2]), Card('3', SUITS[0])], 12)
+        # )
+
+        # while abs(self.point_differential) < 200:
+        self.initialize_round()
+        self.first_move()
+        print(self.players[0].hand)
+        print(self.players[1].hand)
+        while len(self.players[self.turn].hand) > 0:
+            self.play_turn()
+        self.end_round()
+        # end_game()
 
 
 if __name__ == "__main__":

@@ -1,46 +1,20 @@
+from __future__ import annotations
+
 from typing import List
-from sweep_game import SweepGame, Card, Pile
-from abc import ABC, abstractmethod
-from enum import Enum
+from models import Card, Pile, Action, ActionType
+from typing import TYPE_CHECKING
 
-# These Action-related classes should technically be inside the SweepGame class
-class ActionType(Enum):
-    PICK_UP = 1
-    PILE_ON = 2
-    THROW = 3
-
-
-class Action(ABC):
-
-    def __init__(
-        self,
-        action_type: ActionType,
-        played_card: Card,
-        value: int,
-        other_cards: List[Card] = [],
-    ):
-        self.action_type = action_type
-        self.played_card = played_card
-        self.value = value
-        self.other_cards = other_cards
-
-    @abstractmethod
-    def execute(self, game: SweepGame):
-        pass
-
-    def __str__(self):
-        base = f"[{self.action_type.name} (Value: {self.value})] {self.played_card}"
-        if self.other_cards:
-            return f"{base} with {self.other_cards}"
-        return base
+if TYPE_CHECKING:
+    from sweep_game import SweepGame
 
 
 class PickUpAction(Action):
-
     def __init__(self, played_card, value, other_cards=[]):
         super().__init__(
             ActionType.PICK_UP, played_card, played_card.value, other_cards
         )
+        if not other_cards:
+            raise ValueError("Must have other cards for PICK_UP")
 
     def execute(self, game: SweepGame):
         picked_up_cards = []
@@ -56,16 +30,19 @@ class PickUpAction(Action):
 
             game.table.remove(item)
 
-        game.players[game.turn].hand += picked_up_cards
+        game.players[game.turn].captured += picked_up_cards
 
         if len(game.table) == 0:
             game.players[game.turn].sweeps += 1
 
+        game.last_to_pick_up = game.players[game.turn]
+
 
 class PileOnAction(Action):
-
     def __init__(self, played_card, value, other_cards=[]):
         super().__init__(ActionType.PILE_ON, played_card, value, other_cards)
+        if not other_cards:
+            raise ValueError("Must have other cards for PILE_ON")
 
     def execute(self, game: SweepGame):
         pile_cards = []
