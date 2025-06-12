@@ -25,43 +25,9 @@ class Card:
     def __repr__(self):
         return f"{self.rank}{self.suit}"
 
-    def __eq__(self, other):
-        if isinstance(other, Card) or isinstance(other, Pile):
-            return self.value == other.value
-        elif isinstance(other, int):
-            return self.value == other
-        return NotImplemented
-
-    def __gt__(self, other):
-        if isinstance(other, Card) or isinstance(other, Pile):
-            return self.value > other.value
-        elif isinstance(other, int):
-            return self.value > other
-        return NotImplemented
-
     def __lt__(self, other):
         if isinstance(other, Card) or isinstance(other, Pile):
             return self.value < other.value
-        elif isinstance(other, int):
-            return self.value < other
-        return NotImplemented
-
-    def __hash__(self):
-        # Required if you want to use Card in sets or as dict keys, bc implemented __eq__
-        return hash((self.rank, self.suit))
-
-    def __add__(self, other):
-        if isinstance(other, Card) or isinstance(other, Pile):
-            return self.value + other.value
-        elif isinstance(other, int):
-            return self.value + other
-        return NotImplemented
-
-    def __radd__(self, other):
-        # This lets sum() work when starting from 0 (an int)
-        if isinstance(other, int):
-            return other + self.value
-        return NotImplemented
 
 
 class Player:
@@ -72,61 +38,29 @@ class Player:
         self.sweeps: int = 0
 
 class Pile:
-    def __init__(self, creator: Player, cards: List[Card], value: int):
+    def __init__(self, creator: Player, cards: List[Card], value: int, doubled = False):
         self.creators: Set[Player] = {creator}
         self.value = value
         self.cards = cards
-        self.doubled = False
+
+        # previously defaulted to False with no parameter, altered while add_to_pile broken
+        self.doubled = doubled
 
     def __repr__(self):
         return f"Pile of {self.value}: {self.cards}"
 
-    def add_to_pile(self, creator: Player, cards: List[Card]):
-        cards_val = sum(cards)
-        if cards_val != self.value:
-            return False
-        self.cards = self.cards + cards
-        self.doubled = True
-        self.creators.add(creator)
-        return True
-
-    def __eq__(self, other):
-        if isinstance(other, Card) or isinstance(other, Pile):
-            return self.value == other.value
-        elif isinstance(other, int):
-            return self.value == other
-        return NotImplemented
-
-    def __gt__(self, other):
-        if isinstance(other, Card) or isinstance(other, Pile):
-            return self.value > other.value
-        elif isinstance(other, int):
-            return self.value > other
-        return NotImplemented
-
     def __lt__(self, other):
         if isinstance(other, Card) or isinstance(other, Pile):
             return self.value < other.value
-        elif isinstance(other, int):
-            return self.value < other
-        return NotImplemented
 
-    def __hash__(self):
-        # Required if you want to use Card in sets or as dict keys, bc implemented __eq__
-        return hash((self.value, self.doubled))
-
-    def __add__(self, other):
-        if isinstance(other, Card) or isinstance(other, Pile):
-            return self.value + other.value
-        elif isinstance(other, int):
-            return self.value + other
-        return NotImplemented
-
-    def __radd__(self, other):
-        # This lets sum() work when starting from 0 (an int)
-        if isinstance(other, int):
-            return other + self.value
-        return NotImplemented
+    # def add_to_pile(self, creator: Player, cards: List[Card]):
+    #     cards_val = sum(card.value for card in cards)
+    #     if cards_val != self.value:
+    #         return False
+    #     self.cards = self.cards + cards
+    #     self.doubled = True
+    #     self.creators.add(creator)
+    #     return True
 
 
 class ActionType(Enum):
@@ -184,7 +118,7 @@ class SweepGame:
                 break
 
     def first_move_finish_setup(self):
-        declared = max(self.players[self.turn].hand)
+        declared = max(card.value for card in self.players[self.turn].hand)
         # Play the actual move
 
         self.turn = 1 - self.turn
@@ -199,46 +133,46 @@ class SweepGame:
             player.hand.sort()
 
     def play_round(self):
-        # self.table.append(
-        #     Pile(self.players[1 - self.turn], [Card('7', SUITS[2]), Card('3', SUITS[0])], 10)
-        # )
-        # self.table.append(
-        #     Pile(
-        #         self.players[1 - self.turn],
-        #         [
-        #             Card("8", SUITS[2]),
-        #             Card('3', SUITS[0]),
-        #             Card('4', SUITS[2]),
-        #             Card('7', SUITS[0]),
-        #         ], 11
-        #     )
-        # )
-        # self.table.append(
-        #     Pile(self.players[self.turn], [Card('10', SUITS[2]), Card('3', SUITS[0])], 12)
-        # )
 
         self.players[self.turn].hand = [
-            # Card("2", SUITS[0]),
-            # Card("7", SUITS[0]),
-            # Card("8", SUITS[0]),
+            Card("5", SUITS[0]),
             Card("9", SUITS[0]),
+            Card("10", SUITS[3]),
+            Card("10", SUITS[0]),
         ]
 
         self.table = [
-            Card("2", SUITS[1]),
+            Card("A", SUITS[0]),
+            Card("3", SUITS[1]),
             Card("7", SUITS[0]),
-            Card("9", SUITS[1]),
-            Card("9", SUITS[2]),
+            Card("7", SUITS[1]),
+            Card("10", SUITS[1]),
+            Card("10", SUITS[2]),
         ]
+
+        # self.table.append(
+        #     Pile(self.players[1 - self.turn], [Card('7', SUITS[2]), Card('3', SUITS[0])], 10)
+        # )
+        self.table.append(
+            Pile(
+                self.players[1 - self.turn],
+                [
+                    Card("2", SUITS[3]),
+                    Card('7', SUITS[3]),
+                    Card('4', SUITS[3]),
+                    Card('5', SUITS[3]),
+                ], 9, True
+            )
+        )
+        # self.table.append(
+        #     Pile(self.players[self.turn], [Card('10', SUITS[2]), Card('3', SUITS[0])], 12)
+        # )
 
         self.get_valid_actions()
         pass
 
     def get_valid_actions(self):
         cards = self.players[self.turn].hand
-        card_set = set(cards)
-        print(cards)
-        print(self.table)
         actions: List[Action] = []
         for card in cards:
             value = card.value
@@ -251,14 +185,19 @@ class SweepGame:
                 can_throw = False
 
             # Pile On Check
-            # other_cards = list(card_set - {card})
-            # for v in range(9, 14):
-            #     if v in other_cards:
-            #         combos = self.number_combinations(v, card)
-            #         for c in combos:
-            #             actions.append(Action(ActionType.PILE_ON, card, v, c))
-            #             if value in self.piles and self.players[self.turn] in self.piles[value].creators:
-            #                 can_throw = False
+            other_cards_values = [c.value for c in cards if c != card]
+            for v in range(9, 14):
+                if v in other_cards_values:
+                    combos = self.number_combinations(v, card)
+                    if (
+                        combos and
+                        v in self.piles
+                        and self.players[self.turn] in self.piles[v].creators
+                    ):
+                        can_throw = False
+                    for c in combos:
+                        c.remove(card)
+                        actions.append(Action(ActionType.PILE_ON, card, v, c))
 
             # Throwing Actions
             # Check all other actions for:
@@ -268,86 +207,73 @@ class SweepGame:
                 actions.append(Action(ActionType.THROW, card, value))
 
         actions.sort(key=lambda action: action.action_type.value)
-        for act in actions:
-            print(act)
+        # for act in actions:
+        #     print(act)
+        return actions
 
     def number_combinations(self, value, addition: Card = None):
+        equalities = [x for x in self.table if x.value == value]
+        table = [
+            x
+            for x in self.table
+            if x.value < value
+            and not (
+                isinstance(x, Pile)
+                and (x.doubled or self.players[self.turn] in x.creators)
+            )
+        ]
 
-        # equalities = [x for x in self.table if x == value]
-        # table = [
-        #     x
-        #     for x in self.table
-        #     if x < value
-        #     and not (
-        #         isinstance(x, Pile)
-        #         and (x.doubled or self.players[self.turn] in x.creators)
-        #     )
-        # ]
+        addition_is_equal = False
 
-        # addition_is_equal = False
+        if addition:
+            if addition.value == value:
+                addition_is_equal = True
+                equalities.append(addition)
+            elif addition.value < value:
+                table.append(addition)
+            else:
+                return []
 
-        # if addition:
-        #     if addition == value:
-        #         equalities.append(addition)
-        #         addition_is_equal = True
-        #     elif addition < value:
-        #         table.append(addition)
-        #     else:
-        #         return []
-
-        # table.sort()
+        table.sort()
 
         target_value_combos = [
             list(combo)
-            for r in range(1, len(self.table) + 1)
-            for combo in combinations(self.table, r)
-            if sum(combo) == value
+            for r in range(1, len(table) + 1)
+            for combo in combinations(table, r)
+            if sum(card.value for card in combo) == value
         ]
-        print(value, target_value_combos)
-
-        all_combos_of_combos = [
-            list(combo)
-            for r in range(1, len(target_value_combos) + 1)
-            for combo in combinations(target_value_combos, r)
-        ]
-
-        print(all_combos_of_combos)
 
         unique_maximal_combos = []
-        for combo in all_combos_of_combos:
-            used_cards = set()
 
-            invalid_combo = False
-            for c in combo:
-                for card in c:
-                    if card in used_cards:
+        for r in range(1, len(target_value_combos) + 1):
+            for combo in combinations(target_value_combos, r):
+                used_cards = set()
+
+                invalid_combo = False
+                for summation in combo:
+                    for card in summation:
+                        if card in used_cards:
+                            invalid_combo = True
+                            break
+                        used_cards.add(card)
+
+                if invalid_combo:
+                    continue
+
+                if addition and (not addition_is_equal) and addition not in used_cards:
+                    continue
+
+                unused_combos = [c for c in target_value_combos if c not in combo]
+                for uc in unused_combos:
+                    if not any(card in used_cards for card in uc):
                         invalid_combo = True
                         break
-                    used_cards.add(card)
 
-            if invalid_combo:
-                continue
-
-            # if not (addition_is_equal) and addition not in used_cards:
-            #     continue
-
-            unused_combos = [c for c in target_value_combos if c not in combo]
-            print("UNUSED", unused_combos)
-            for uc in unused_combos:
-                repeated_card = False
-                for card in uc:
-                    if card in used_cards:
-                        repeated_card = True
-                        break
-                if not repeated_card:
-                    invalid_combo = True
-
-            if not invalid_combo:
-                unique_maximal_combos += combo
-
-        # unique_maximal_combos = [combo + equalities for combo in unique_maximal_combos]
-        # if not (unique_maximal_combos) and equalities:
-        #     unique_maximal_combos.append(equalities)
+                if not invalid_combo:
+                    unique_maximal_combos.append([card for summation in combo for card in summation] + equalities)
+        if not addition or addition_is_equal:
+            if not (unique_maximal_combos) and equalities:
+                unique_maximal_combos.append(equalities)
 
         return unique_maximal_combos
 
