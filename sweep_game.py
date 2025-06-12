@@ -1,9 +1,7 @@
 from typing import List, Union, Dict, Set
 import random
-from abc import ABC, abstractmethod
-from enum import Enum
 from itertools import combinations
-import time
+from actions import Action, ActionType, create_action
 
 # Constants for card values
 CARD_VALUES = {
@@ -38,13 +36,20 @@ class Player:
         self.sweeps: int = 0
 
 class Pile:
-    def __init__(self, creator: Player, cards: List[Card], value: int, doubled = False):
-        self.creators: Set[Player] = {creator}
+
+    def __init__(self, creators: Set[Player], cards: List[Card], value: int):
+        self.creators: Set[Player] = creators
         self.value = value
         self.cards = cards
 
-        # previously defaulted to False with no parameter, altered while add_to_pile broken
-        self.doubled = doubled
+        sum_of_cards = sum(card.value for card in cards)
+        self.doubled = False
+
+        if sum_of_cards % value == 0:
+            if sum_of_cards // value >= 2:
+                self.doubled = True
+        else:
+            raise ValueError("Bad Sum of Cards in Pile")
 
     def __repr__(self):
         return f"Pile of {self.value}: {self.cards}"
@@ -53,33 +58,6 @@ class Pile:
         if isinstance(other, Card) or isinstance(other, Pile):
             return self.value < other.value
 
-    # def add_to_pile(self, creator: Player, cards: List[Card]):
-    #     cards_val = sum(card.value for card in cards)
-    #     if cards_val != self.value:
-    #         return False
-    #     self.cards = self.cards + cards
-    #     self.doubled = True
-    #     self.creators.add(creator)
-    #     return True
-
-
-class ActionType(Enum):
-    PICK_UP = 1
-    PILE_ON = 2
-    THROW = 3
-
-class Action:
-    def __init__(self, action_type: ActionType, played_card: Card, value: int, other_cards: List[Card] = []):
-        self.action_type = action_type
-        self.played_card = played_card
-        self.value = value
-        self.other_cards = other_cards
-
-    def __str__(self):
-        if self.other_cards:
-            return f'Action: {self.action_type}, Card: {self.played_card}, Value: {self.value}, Other Cards: {self.other_cards}'
-
-        return f'Action: {self.action_type}, Card: {self.played_card}, Value: {self.value}'
 
 # Game class
 class SweepGame:
@@ -120,6 +98,7 @@ class SweepGame:
     def first_move_finish_setup(self):
         declared = max(card.value for card in self.players[self.turn].hand)
         # Play the actual move
+        action_options = [action for action in self.get_valid_actions() if action.value == declared]
 
         self.turn = 1 - self.turn
 
@@ -168,12 +147,22 @@ class SweepGame:
         #     Pile(self.players[self.turn], [Card('10', SUITS[2]), Card('3', SUITS[0])], 12)
         # )
 
-        self.get_valid_actions()
+        while len(self.players[self.turn].hand) > 0:
+            action_options = self.get_valid_actions()
+            # Get player to select an action, default first option for now
+            action_to_play = action_options[0]
+
+            # Perform action
+            action_to_play.execute()
+
+            self.turn = 1 - self.turn
+            break
+
         pass
 
     def get_valid_actions(self):
         cards = self.players[self.turn].hand
-        actions: List[Action] = []
+        valid_actions: List[Action] = []
         for card in cards:
             value = card.value
             can_throw = True
@@ -181,7 +170,7 @@ class SweepGame:
             # Pick Up Check
             combos = self.number_combinations(value)
             for c in combos:
-                actions.append(Action(ActionType.PICK_UP, card, value, c))
+                valid_actions.append(create_action(ActionType.PICK_UP, card, value, c))
                 can_throw = False
 
             # Pile On Check
@@ -197,19 +186,19 @@ class SweepGame:
                         can_throw = False
                     for c in combos:
                         c.remove(card)
-                        actions.append(Action(ActionType.PILE_ON, card, v, c))
+                        valid_actions.append(create_action(ActionType.PILE_ON, card, v, c))
 
             # Throwing Actions
-            # Check all other actions for:
+            # Check all other valid_actions for:
             # - Pick Up with that value
             # - or Pile On an existing pile that you created
             if can_throw:
-                actions.append(Action(ActionType.THROW, card, value))
+                valid_actions.append(create_action(ActionType.THROW, card, value))
 
-        actions.sort(key=lambda action: action.action_type.value)
-        # for act in actions:
+        valid_actions.sort(key=lambda action: action.action_type.value)
+        # for act in valid_actions:
         #     print(act)
-        return actions
+        return valid_actions
 
     def number_combinations(self, value, addition: Card = None):
         equalities = [x for x in self.table if x.value == value]
