@@ -61,6 +61,7 @@ class PileOnAction(Action):
 
             game.table.remove(item)
 
+        creators.add(game.players[game.turn])
         new_pile = Pile(creators, pile_cards, self.value)
         game.table.append(new_pile)
         game.piles[self.value] = new_pile

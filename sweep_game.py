@@ -55,7 +55,7 @@ class SweepGame:
         # Get player to select an action, default random option for now
         action_to_play = random.choice(action_options)
 
-        print(action_to_play)
+        print(f'{self.players[self.turn]} -- {action_to_play}')
 
         action_to_play.execute(self)
 
@@ -100,10 +100,18 @@ class SweepGame:
                 valid_actions.append(create_action(ActionType.PICK_UP, card, value, c))
                 can_throw = False
 
+            # Check if card is responsible for a Pile
+            other_card_values = [c.value for c in cards if c != card]
+            if (
+                card.value in self.piles and 
+                self.players[self.turn] in self.piles[card.value].creators 
+                and card.value not in other_card_values
+            ):
+                continue
+
             # Pile On Check
-            other_cards_values = [c.value for c in cards if c != card]
             for v in range(9, 14):
-                if v in other_cards_values:
+                if v in other_card_values:
                     combos = self.number_combinations(v, card)
                     if (
                         combos and
@@ -207,6 +215,10 @@ class SweepGame:
             points_per_player[1] += 2
 
         print(points_per_player)
+        max_ind = max(0, 1, key=lambda i: points_per_player[i])
+        print(
+            f"{self.players[max_ind]} won by {points_per_player[max_ind] - points_per_player[1 - max_ind]}! ({points_per_player[max_ind]} - {points_per_player[1 - max_ind]})"
+        )
 
         self.point_differential += (points_per_player[0] - points_per_player[1])
 
@@ -215,7 +227,7 @@ class SweepGame:
         #     Card("5", SUITS[0]),
         #     Card("9", SUITS[0]),
         #     Card("10", SUITS[3]),
-        #     Card("10", SUITS[0]),
+        #     # Card("9", SUITS[2]),
         # ]
 
         # self.table = [
@@ -230,22 +242,25 @@ class SweepGame:
         # self.table.append(
         #     Pile(self.players[1 - self.turn], [Card('7', SUITS[2]), Card('3', SUITS[0])], 10)
         # )
-        # self.table.append(
-        #     Pile(
-        #         self.players[1 - self.turn],
+        # new_pile = Pile(
+        #         {self.players[1 - self.turn]},
         #         [
         #             Card("2", SUITS[3]),
         #             Card('7', SUITS[3]),
         #             Card('4', SUITS[3]),
         #             Card('5', SUITS[3]),
-        #         ], 9, True
+        #         ], 9
         #     )
+        # self.table.append(
+        #     new_pile
         # )
+        # self.piles[9] = new_pile
         # self.table.append(
         #     Pile(self.players[self.turn], [Card('10', SUITS[2]), Card('3', SUITS[0])], 12)
         # )
 
         # while abs(self.point_differential) < 200:
+        # while True:
         self.initialize_round()
         self.first_move()
         print(self.players[0].hand)
@@ -253,7 +268,8 @@ class SweepGame:
         while len(self.players[self.turn].hand) > 0:
             self.play_turn()
         self.end_round()
-        # end_game()
+        # print("---------------------------------------------")
+        # self.end_game()
 
 
 if __name__ == "__main__":

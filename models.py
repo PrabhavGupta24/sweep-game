@@ -51,6 +51,9 @@ class Player:
         self.sweeps: int = 0
         self.is_ai = is_ai
 
+    def __str__(self):
+        return self.name
+
 
 class Pile:
 
