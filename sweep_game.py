@@ -202,7 +202,18 @@ class SweepGame:
 
         return unique_maximal_combos
 
+    def deal_second_half(self):
+        for i in range(3):
+            self.players[self.turn].hand += self.deck[:4]
+            self.players[1 - self.turn].hand += self.deck[4:8]
+            del self.deck[:8]
+
+        for player in self.players:
+            player.hand.sort()
+
     def end_round(self):
+        if not self.table:
+            self.players[1 - self.turn].sweeps -= 1
         self.last_to_pick_up.captured += self.table
 
         points_per_player = [sum(card.points for card in player.captured) + (50 * player.sweeps) for player in self.players]
@@ -262,11 +273,19 @@ class SweepGame:
         # while abs(self.point_differential) < 200:
         # while True:
         self.initialize_round()
+
         self.first_move()
         print(self.players[0].hand)
         print(self.players[1].hand)
         while len(self.players[self.turn].hand) > 0:
             self.play_turn()
+
+        self.deal_second_half()
+        print(self.players[0].hand)
+        print(self.players[1].hand)
+        while len(self.players[self.turn].hand) > 0:
+            self.play_turn()
+
         self.end_round()
         # print("---------------------------------------------")
         # self.end_game()

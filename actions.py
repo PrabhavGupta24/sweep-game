@@ -34,6 +34,7 @@ class PickUpAction(Action):
 
         if len(game.table) == 0:
             game.players[game.turn].sweeps += 1
+            print(f"{game.players[game.turn]} sweeps!")
 
         game.last_to_pick_up = game.players[game.turn]
 
