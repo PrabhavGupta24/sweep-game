@@ -30,6 +30,7 @@ class PickUpAction(Action):
 
             game.table.remove(item)
 
+        game.players[game.turn].points += sum(card.points for card in picked_up_cards)
         game.players[game.turn].captured += picked_up_cards
 
         if len(game.table) == 0:

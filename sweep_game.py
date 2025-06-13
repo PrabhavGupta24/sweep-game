@@ -3,6 +3,8 @@ import random
 from itertools import combinations
 from actions import create_action
 from models import Card, Pile, Action, ActionType, SUITS, RANKS, Player
+import time
+import os
 
 
 # Game class
@@ -12,13 +14,13 @@ class SweepGame:
         self.table: List[Union[Card, Pile]] = []
         self.players = [
             Player("Player 1", is_ai=False),
-            Player("Player 2", is_ai=True),
+            Player("Player 2 (AI)", is_ai=True),
         ]
         self.round = 0 # Needed??
         self.piles: Dict[int, Pile] = {}
         self.last_to_pick_up: Player = None
         self.point_differential = 0
-        self.turn = 1 if self.point_differential < 0 else 0  # Index of current player
+        self.turn = random.randint(0, 1)  # Index of current player
 
         num = 2 if self.round == 0 else 3
         for i in range(num):
@@ -33,7 +35,13 @@ class SweepGame:
         self.round += 1
         self.piles = {}
         self.last_to_pick_up = None
-        self.turn = 1 if self.point_differential < 0 else 0  # Index of current player
+
+        # Else Case: self.turn stays as is
+        if self.point_differential < 0:
+            self.turn = 1
+        elif self.point_differential > 0:
+            self.turn = 0
+
         for player in self.players:
             player.hand = []
             player.captured = []
@@ -62,6 +70,8 @@ class SweepGame:
         self.turn = 1 - self.turn
 
     def first_move(self):
+        print(f"\nStarting round {self.round}! {self.players[self.turn]} will play first.")
+
         while True:
             random.shuffle(self.deck)
             if any(card.value >= 9 for card in self.deck[4:8]):
@@ -69,8 +79,13 @@ class SweepGame:
                 del self.deck[4:8]
                 break
 
+        # time.sleep(2)
+
         # Get actual declared value
-        declared = max(card.value for card in self.players[self.turn].hand)
+        if self.players[self.turn].is_ai:
+            declared = max(card.value for card in self.players[self.turn].hand)
+        else:
+            declared = max(card.value for card in self.players[self.turn].hand)
 
         self.table = self.deck[:4]
         self.players[1 - self.turn].hand = self.deck[4:8]
@@ -78,7 +93,7 @@ class SweepGame:
 
         self.play_turn(declared_value=declared)
 
-        # Deal remaining cards for round one, starting with player who just played
+        # Deal remaining cards for first half of round one, starting with player who just played
         for i in range(2):
             self.players[1 - self.turn].hand += self.deck[:4]
             self.players[self.turn].hand += self.deck[4:8]
@@ -133,6 +148,11 @@ class SweepGame:
         valid_actions.sort(key=lambda action: action.action_type.value)
         # for act in valid_actions:
         #     print(act)
+        if len(valid_actions) == 0:
+            print("NO ACTIONS!!!")
+            print(self.players[self.turn].hand)
+            print(self.players[1 - self.turn].hand)
+            print(self.table)
         return valid_actions
 
     def number_combinations(self, value, addition: Card = None):
@@ -143,7 +163,7 @@ class SweepGame:
             if x.value < value
             and not (
                 isinstance(x, Pile)
-                and (x.doubled or self.players[self.turn] in x.creators)
+                and (not addition or x.doubled or self.players[self.turn] in x.creators)
             )
         ]
 
@@ -214,22 +234,35 @@ class SweepGame:
     def end_round(self):
         if not self.table:
             self.players[1 - self.turn].sweeps -= 1
+        self.last_to_pick_up.points += sum(card.points for card in self.table)
         self.last_to_pick_up.captured += self.table
 
-        points_per_player = [sum(card.points for card in player.captured) + (50 * player.sweeps) for player in self.players]
         if len(self.players[0].captured) > 26:
-            points_per_player[0] += 4
+            self.players[0].points += 4
         elif len(self.players[1].captured) > 26:
-            points_per_player[1] += 4
+            self.players[1].points += 4
         else:
-            points_per_player[0] += 2
-            points_per_player[1] += 2
+            self.players[0].points += 2
+            self.players[1].points += 2
+
+        self.players[0].points += 2
+        self.players[1].points += 2
+
+        points_per_player = [
+            player.points + (50 * player.sweeps)
+            for player in self.players
+        ]
 
         print(points_per_player)
-        max_ind = max(0, 1, key=lambda i: points_per_player[i])
-        print(
-            f"{self.players[max_ind]} won by {points_per_player[max_ind] - points_per_player[1 - max_ind]}! ({points_per_player[max_ind]} - {points_per_player[1 - max_ind]})"
-        )
+        if points_per_player[0] == points_per_player[1]:
+            print(
+                f"Round Tied! ({points_per_player[0]} - {points_per_player[1]})"
+            )
+        else:
+            max_ind = max(0, 1, key=lambda i: points_per_player[i])
+            print(
+                f"{self.players[max_ind]} won by {points_per_player[max_ind] - points_per_player[1 - max_ind]}! ({points_per_player[max_ind]} - {points_per_player[1 - max_ind]})"
+            )
 
         self.point_differential += (points_per_player[0] - points_per_player[1])
 
@@ -289,6 +322,25 @@ class SweepGame:
         self.end_round()
         # print("---------------------------------------------")
         # self.end_game()
+
+    def _clear_screen(self):
+        """Clears the console screen."""
+        os.system("cls" if os.name == "nt" else "clear")
+
+    # def _display_header(self):
+    #     """Displays the game title and scores."""
+    #     print("=" * 40)
+    #     print("          SWEEP")
+    #     print("=" * 40)
+    #     print(
+    #         f"Scores: Team A (You & P3): {self.scores['A']} | Team B (P2 & P4): {self.scores['B']}"
+    #     )
+    #     print(
+    #         f"Tricks this round: Team A: {self.tricks_won['A']} | Team B: {self.tricks_won['B']}"
+    #     )
+    #     if self.trump_suit:
+    #         print(f"Trump Suit: {SUIT_NAMES[self.trump_suit]} {SUITS[self.trump_suit]}")
+    #     print("-" * 40)
 
 
 if __name__ == "__main__":

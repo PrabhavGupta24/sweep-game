@@ -50,6 +50,7 @@ class Player:
         self.captured: List[Card] = []
         self.sweeps: int = 0
         self.is_ai = is_ai
+        self.points: int = 0
 
     def __str__(self):
         return self.name
