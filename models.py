@@ -105,7 +105,7 @@ class Action(ABC):
         pass
 
     def __str__(self):
-        base = f"[{self.action_type.name} (Value: {self.value})] {self.played_card}"
+        base = f"[{self.action_type.name} ({self.value})] {self.played_card}"
         if self.other_cards:
             return f"{base} with {self.other_cards}"
         return base

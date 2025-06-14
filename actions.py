@@ -30,12 +30,17 @@ class PickUpAction(Action):
 
             game.table.remove(item)
 
-        game.players[game.turn].points += sum(card.points for card in picked_up_cards)
+        gained_points = sum(card.points for card in picked_up_cards)
+        game.players[game.turn].points += gained_points
         game.players[game.turn].captured += picked_up_cards
 
-        if len(game.table) == 0:
+        print(f"{game.players[game.turn]} picked up {len(picked_up_cards)} cards and gained {gained_points} points.")
+
+        if len(game.table) == 0 and any(len(player.hand) > 0 for player in game.players):
             game.players[game.turn].sweeps += 1
             print(f"{game.players[game.turn]} sweeps!")
+        
+        print()
 
         game.last_to_pick_up = game.players[game.turn]
 

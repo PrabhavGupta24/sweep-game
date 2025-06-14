@@ -46,6 +46,7 @@ class SweepGame:
             player.hand = []
             player.captured = []
             player.sweeps = 0
+            player.points = 0
 
         # Assign card points
         for card in self.deck:
@@ -60,17 +61,49 @@ class SweepGame:
         if declared_value:
             action_options = [action for action in action_options if action.value == declared_value]
 
-        # Get player to select an action, default random option for now
-        action_to_play = random.choice(action_options)
+        self._clear_screen()
+        self._display_header()
+        self._display_table()
 
-        print(f'{self.players[self.turn]} -- {action_to_play}')
+        if self.players[self.turn].is_ai:
+            action_to_play = random.choice(action_options)
+            print(f"{self.players[self.turn]} chose action: {action_to_play}")
+        else:
+            self._display_player_hand()
+            self._display_action_options(action_options)
+            error_msg = "Invalid action choice. Please choose from the options. \n"
+            while True:
+                try:
+                    selected_action_ind = int(
+                        input(
+                            f"{self.players[self.turn]}, choose an action in range 1 - {len(action_options)}: "
+                        )
+                    )
+                    if selected_action_ind in range(1, len(action_options) + 1):
+                        action_to_play = action_options[selected_action_ind - 1]
+                        break
+                    else:
+                        print(error_msg)
+                except (ValueError, IndexError):
+                    print(error_msg)
+                time.sleep(1)
+            print()
+            print(f"{self.players[self.turn]} played: {action_to_play}")
+
+        print()
 
         action_to_play.execute(self)
+
+        self._display_table(is_new=True)
+        input("Press ENTER to continue.")
 
         self.turn = 1 - self.turn
 
     def first_move(self):
-        print(f"\nStarting round {self.round}! {self.players[self.turn]} will play first.")
+        self._clear_screen()
+        self._display_header()
+
+        print(f"Starting round {self.round}! {self.players[self.turn]} will play first.")
 
         while True:
             random.shuffle(self.deck)
@@ -79,13 +112,35 @@ class SweepGame:
                 del self.deck[4:8]
                 break
 
-        # time.sleep(2)
+        self.players[self.turn].hand.sort()
 
         # Get actual declared value
         if self.players[self.turn].is_ai:
+            time.sleep(1)
             declared = max(card.value for card in self.players[self.turn].hand)
+            print(f'{self.players[self.turn]} declares {declared}.\n')
+            input("Press ENTER to continue.")
         else:
-            declared = max(card.value for card in self.players[self.turn].hand)
+            print()
+            self._display_player_hand()
+            declare_choices = set(card.value for card in self.players[self.turn].hand if card.value >= 9)
+            declare_choices = sorted(list(declare_choices))
+            error_msg = "Invalid declaration. Please choose from the options. \n"
+            while True:
+                try:
+                    declared = int(
+                        input(
+                            f"{self.players[self.turn]}, declare a value from {declare_choices}: "
+                        )
+                    )
+                    if declared in declare_choices:
+                        break
+                    else:
+                        print(error_msg)
+                except (ValueError, IndexError):
+                    print(error_msg)
+
+                time.sleep(1)
 
         self.table = self.deck[:4]
         self.players[1 - self.turn].hand = self.deck[4:8]
@@ -145,7 +200,7 @@ class SweepGame:
             if can_throw:
                 valid_actions.append(create_action(ActionType.THROW, card, value))
 
-        valid_actions.sort(key=lambda action: action.action_type.value)
+        # valid_actions.sort(key=lambda action: action.played_card)
         # for act in valid_actions:
         #     print(act)
         if len(valid_actions) == 0:
@@ -232,28 +287,32 @@ class SweepGame:
             player.hand.sort()
 
     def end_round(self):
-        if not self.table:
-            self.players[1 - self.turn].sweeps -= 1
-        self.last_to_pick_up.points += sum(card.points for card in self.table)
-        self.last_to_pick_up.captured += self.table
+        print()
+        if self.table:
+            leftover_points = sum(card.points for card in self.table)
+            self.last_to_pick_up.points += leftover_points
+            self.last_to_pick_up.captured += self.table
+
+            print(
+                f"Remaining {len(self.table)} cards and {leftover_points} points go to {self.last_to_pick_up}."
+            )
 
         if len(self.players[0].captured) > 26:
             self.players[0].points += 4
+            print(f'{self.players[0]} has more cards -> +4 points')
         elif len(self.players[1].captured) > 26:
             self.players[1].points += 4
+            print(f"{self.players[1]} has more cards -> +4 points")
         else:
             self.players[0].points += 2
             self.players[1].points += 2
-
-        self.players[0].points += 2
-        self.players[1].points += 2
+            print(f"Both players have the same number of cards -> +2 points each")
 
         points_per_player = [
             player.points + (50 * player.sweeps)
             for player in self.players
         ]
 
-        print(points_per_player)
         if points_per_player[0] == points_per_player[1]:
             print(
                 f"Round Tied! ({points_per_player[0]} - {points_per_player[1]})"
@@ -308,14 +367,14 @@ class SweepGame:
         self.initialize_round()
 
         self.first_move()
-        print(self.players[0].hand)
-        print(self.players[1].hand)
+        # print(self.players[0].hand)
+        # print(self.players[1].hand)
         while len(self.players[self.turn].hand) > 0:
             self.play_turn()
 
         self.deal_second_half()
-        print(self.players[0].hand)
-        print(self.players[1].hand)
+        # print(self.players[0].hand)
+        # print(self.players[1].hand)
         while len(self.players[self.turn].hand) > 0:
             self.play_turn()
 
@@ -327,20 +386,52 @@ class SweepGame:
         """Clears the console screen."""
         os.system("cls" if os.name == "nt" else "clear")
 
-    # def _display_header(self):
-    #     """Displays the game title and scores."""
-    #     print("=" * 40)
-    #     print("          SWEEP")
-    #     print("=" * 40)
-    #     print(
-    #         f"Scores: Team A (You & P3): {self.scores['A']} | Team B (P2 & P4): {self.scores['B']}"
-    #     )
-    #     print(
-    #         f"Tricks this round: Team A: {self.tricks_won['A']} | Team B: {self.tricks_won['B']}"
-    #     )
-    #     if self.trump_suit:
-    #         print(f"Trump Suit: {SUIT_NAMES[self.trump_suit]} {SUITS[self.trump_suit]}")
-    #     print("-" * 40)
+    def _display_header(self):
+        """Displays the game title and scores."""
+        print("=" * 40)
+        print("                SWEEP")
+        print("=" * 40)
+        print("               Round", self.round)
+        print("-" * 40)
+
+        print(
+            f"Cards:  {self.players[0]}: {len(self.players[0].captured)} | {self.players[1]}: {len(self.players[1].captured)}"
+        )
+        print(
+            f"Points: {self.players[0]}: {self.players[0].points} | {self.players[1]}: {self.players[1].points}"
+        )
+        print(
+            f"Sweeps: {self.players[0]}: {self.players[0].sweeps} | {self.players[1]}: {self.players[1].sweeps}"
+        )
+
+        print("-" * 40)
+        print()
+
+    def _display_table(self, is_new=False):
+        """Displays the game table."""
+        title_str = "--- New Table ---" if is_new else "--- Table ---"
+        print(title_str)
+        if not self.table:
+            print("[Empty]")
+        else:
+            for item in self.table:
+                print(item)
+        print("-" * len(title_str), "\n")
+
+    def _display_player_hand(self):
+        player = self.players[self.turn]
+        title_str = f"--- {player.name}'s Hand ---"
+        print(title_str)
+        print(player.hand)
+        print("-" * len(title_str), '\n')
+
+    def _display_action_options(self, action_options):
+        player = self.players[self.turn]
+        title_str = f"--- Action Options ---"
+        print(title_str)
+        for i, action in enumerate(action_options):
+            print(f'({i + 1}) {action}')
+        print("-" * len(title_str), "\n")
 
 
 if __name__ == "__main__":
