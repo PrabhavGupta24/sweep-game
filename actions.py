@@ -36,7 +36,7 @@ class PickUpAction(Action):
 
         print(f"{game.players[game.turn]} picked up {len(picked_up_cards)} cards and gained {gained_points} points.")
 
-        if len(game.table) == 0 and any(len(player.hand) > 0 for player in game.players):
+        if len(game.table) == 0 and (len(game.deck) > 0 or any(len(player.hand) > 0 for player in game.players)):
             game.players[game.turn].sweeps += 1
             print(f"{game.players[game.turn]} sweeps!")
         

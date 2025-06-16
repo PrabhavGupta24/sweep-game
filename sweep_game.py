@@ -16,6 +16,9 @@ class SweepGame:
             Player("Player 1", is_ai=False),
             Player("Player 2 (AI)", is_ai=True),
         ]
+        for player in self.players:
+            player.unseen_cards = set(self.deck)
+
         self.round = 0 # Needed??
         self.piles: Dict[int, Pile] = {}
         self.last_to_pick_up: Player = None
@@ -47,6 +50,7 @@ class SweepGame:
             player.captured = []
             player.sweeps = 0
             player.points = 0
+            player.unseen_cards = set(self.deck)
 
         # Assign card points
         for card in self.deck:
@@ -93,6 +97,7 @@ class SweepGame:
         print()
 
         action_to_play.execute(self)
+        self.players[1 - self.turn].unseen_cards -= {action_to_play.played_card}
 
         self._display_table(is_new=True)
         input("Press ENTER to continue.")
@@ -102,35 +107,37 @@ class SweepGame:
     def first_move(self):
         self._clear_screen()
         self._display_header()
+        first_player = self.players[self.turn]
 
-        print(f"Starting round {self.round}! {self.players[self.turn]} will play first.")
+        print(f"Starting round {self.round}! {first_player} will play first.")
 
         while True:
             random.shuffle(self.deck)
             if any(card.value >= 9 for card in self.deck[4:8]):
-                self.players[self.turn].hand = self.deck[4:8]
+                first_player.hand = self.deck[4:8]
                 del self.deck[4:8]
                 break
 
-        self.players[self.turn].hand.sort()
+        first_player.hand.sort()
+        first_player.unseen_cards -= set(first_player.hand)
 
         # Get actual declared value
-        if self.players[self.turn].is_ai:
+        if first_player.is_ai:
             time.sleep(1)
-            declared = max(card.value for card in self.players[self.turn].hand)
-            print(f'{self.players[self.turn]} declares {declared}.\n')
+            declared = max(card.value for card in first_player.hand)
+            print(f'{first_player} declares {declared}.\n')
             input("Press ENTER to continue.")
         else:
             print()
             self._display_player_hand()
-            declare_choices = set(card.value for card in self.players[self.turn].hand if card.value >= 9)
+            declare_choices = set(card.value for card in first_player.hand if card.value >= 9)
             declare_choices = sorted(list(declare_choices))
             error_msg = "Invalid declaration. Please choose from the options. \n"
             while True:
                 try:
                     declared = int(
                         input(
-                            f"{self.players[self.turn]}, declare a value from {declare_choices}: "
+                            f"{first_player}, declare a value from {declare_choices}: "
                         )
                     )
                     if declared in declare_choices:
@@ -144,6 +151,8 @@ class SweepGame:
 
         self.table = self.deck[:4]
         self.players[1 - self.turn].hand = self.deck[4:8]
+        first_player.unseen_cards -= set(self.table)
+        self.players[1 - self.turn].unseen_cards -= set(self.deck[:8])
         del self.deck[:8]
 
         self.play_turn(declared_value=declared)
@@ -156,6 +165,7 @@ class SweepGame:
 
         for player in self.players:
             player.hand.sort()
+            player.unseen_cards -= set(player.hand)
 
     def get_valid_actions(self):
         cards = self.players[self.turn].hand
@@ -167,7 +177,10 @@ class SweepGame:
             # Pick Up Check
             combos = self.number_combinations(value)
             for c in combos:
-                valid_actions.append(create_action(ActionType.PICK_UP, card, value, c))
+                act = create_action(ActionType.PICK_UP, card, value, c)
+                if len(c) == len(self.table) and (len(self.deck) > 0 or any(len(player.hand) > 0 for player in self.players)):
+                    act.causes_sweep = True
+                valid_actions.append(act)
                 can_throw = False
 
             # Check if card is responsible for a Pile
@@ -285,6 +298,7 @@ class SweepGame:
 
         for player in self.players:
             player.hand.sort()
+            player.unseen_cards -= set(player.hand)
 
     def end_round(self):
         print()

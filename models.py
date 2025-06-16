@@ -51,6 +51,7 @@ class Player:
         self.sweeps: int = 0
         self.is_ai = is_ai
         self.points: int = 0
+        self.unseen_cards = None
 
     def __str__(self):
         return self.name
@@ -99,13 +100,14 @@ class Action(ABC):
         self.played_card = played_card
         self.value = value
         self.other_cards = other_cards
+        self.causes_sweep = False
 
     @abstractmethod
     def execute(self, game: SweepGame):
         pass
 
     def __str__(self):
-        base = f"[{self.action_type.name} ({self.value})] {self.played_card}"
+        base = f"[{self.action_type.name} ({self.value})] {self.played_card} - {self.causes_sweep} -"
         if self.other_cards:
             return f"{base} with {self.other_cards}"
         return base
