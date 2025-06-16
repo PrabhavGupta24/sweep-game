@@ -24,6 +24,7 @@ class SweepGame:
         self.last_to_pick_up: Player = None
         self.point_differential = 0
         self.turn = random.randint(0, 1)  # Index of current player
+        self.first_to_play = self.players[self.turn]
 
         num = 2 if self.round == 0 else 3
         for i in range(num):
@@ -44,6 +45,8 @@ class SweepGame:
             self.turn = 1
         elif self.point_differential > 0:
             self.turn = 0
+        
+        self.first_to_play = self.players[self.turn]
 
         for player in self.players:
             player.hand = []
@@ -107,7 +110,7 @@ class SweepGame:
     def first_move(self):
         self._clear_screen()
         self._display_header()
-        first_player = self.players[self.turn]
+        first_player = self.first_to_play
 
         print(f"Starting round {self.round}! {first_player} will play first.")
 
