@@ -9,7 +9,7 @@ import os
 
 # Game class
 class SweepGame:
-    def __init__(self):
+    def __init__(self, training_mode=False):
         self.deck: List[Card] = [Card(rank, suit) for suit in SUITS for rank in RANKS]
         self.table: List[Union[Card, Pile]] = []
         self.players = [
@@ -25,12 +25,7 @@ class SweepGame:
         self.point_differential = 0
         self.turn = random.randint(0, 1)  # Index of current player
         self.first_to_play = self.players[self.turn]
-
-        num = 2 if self.round == 0 else 3
-        for i in range(num):
-            self.players[self.turn].hand.append(self.deck[0:4])
-            self.players[1 - self.turn].hand.append(self.deck[4:8])
-            self.deck = self.deck[8:]
+        self.training_mode = training_mode
 
     def initialize_round(self):
         # set initial instance variables
@@ -41,11 +36,12 @@ class SweepGame:
         self.last_to_pick_up = None
 
         # Else Case: self.turn stays as is
+        # Note: point differential = 0 at the beginning -> else case
         if self.point_differential < 0:
             self.turn = 1
         elif self.point_differential > 0:
             self.turn = 0
-        
+
         self.first_to_play = self.players[self.turn]
 
         for player in self.players:
@@ -67,14 +63,17 @@ class SweepGame:
         action_options = self.get_valid_actions()
         if declared_value:
             action_options = [action for action in action_options if action.value == declared_value]
-
-        self._clear_screen()
-        self._display_header()
-        self._display_table()
+            if len(action_options) > 1:
+                action_options = [action for action in action_options if action.action_type != ActionType.THROW]
+        if not self.training_mode:
+            self._clear_screen()
+            self._display_header()
+            self._display_table()
 
         if self.players[self.turn].is_ai:
             action_to_play = random.choice(action_options)
-            print(f"{self.players[self.turn]} chose action: {action_to_play}")
+            if not self.training_mode:
+                print(f"{self.players[self.turn]} chose action: {action_to_play}")
         else:
             self._display_player_hand()
             self._display_action_options(action_options)
@@ -97,22 +96,25 @@ class SweepGame:
             print()
             print(f"{self.players[self.turn]} played: {action_to_play}")
 
-        print()
+        if not self.training_mode:
+            print()
 
         action_to_play.execute(self)
         self.players[1 - self.turn].unseen_cards -= {action_to_play.played_card}
 
-        self._display_table(is_new=True)
-        input("Press ENTER to continue.")
+        if not self.training_mode:
+            self._display_table(is_new=True)
+            input("Press ENTER to continue.")
 
         self.turn = 1 - self.turn
 
     def first_move(self):
-        self._clear_screen()
-        self._display_header()
         first_player = self.first_to_play
 
-        print(f"Starting round {self.round}! {first_player} will play first.")
+        if not self.training_mode:
+            self._clear_screen()
+            self._display_header()
+            print(f"Starting round {self.round}! {first_player} will play first.")
 
         while True:
             random.shuffle(self.deck)
@@ -126,10 +128,11 @@ class SweepGame:
 
         # Get actual declared value
         if first_player.is_ai:
-            time.sleep(1)
             declared = max(card.value for card in first_player.hand)
-            print(f'{first_player} declares {declared}.\n')
-            input("Press ENTER to continue.")
+            if not self.training_mode:
+                time.sleep(1)
+                print(f'{first_player} declares {declared}.\n')
+                input("Press ENTER to continue.")
         else:
             print()
             self._display_player_hand()
@@ -303,7 +306,7 @@ class SweepGame:
             player.hand.sort()
             player.unseen_cards -= set(player.hand)
 
-    def end_round(self):
+    def end_round(self): # FIXXXX THIS METHOD
         print()
         if self.table:
             leftover_points = sum(card.points for card in self.table)

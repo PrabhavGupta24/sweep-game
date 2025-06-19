@@ -82,9 +82,9 @@ class Pile:
 
 
 class ActionType(Enum):
-    PICK_UP = 1
-    PILE_ON = 2
-    THROW = 3
+    PICK_UP = 0
+    PILE_ON = 1
+    THROW = 2
 
 
 class Action(ABC):
@@ -101,6 +101,7 @@ class Action(ABC):
         self.value = value
         self.other_cards = other_cards
         self.causes_sweep = False
+        self.points_gained = 0
 
     @abstractmethod
     def execute(self, game: SweepGame):
