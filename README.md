@@ -13,13 +13,18 @@ python3 -m pip install -r requirements.txt
 python3 play.py
 ```
 
-You play against a random AI. Options:
+You play against an AI opponent. Options:
 
 ```sh
+python3 play.py --ai heuristic   # opponent: random (default), greedy, or heuristic
 python3 play.py --seed 42        # reproducible deal / first player
 python3 play.py --ai-seed 7      # reproducible AI choices
 python3 play.py --win-lead 100   # shorter game (default: 200-point lead)
 ```
+
+The opponent types match the agents described under
+[Agents & evaluation](#agents--evaluation): `random` plays uniformly, `greedy`
+maximizes immediate points, and `heuristic` is the strongest hand-crafted player.
 
 In game: pick a numbered action (or type the value at the opening declaration),
 press `h` for a one-screen rules cheat-sheet, and `q` to quit. Press ENTER to

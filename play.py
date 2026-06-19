@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Play Sweep in the terminal against a random AI.
+"""Play Sweep in the terminal against an AI.
 
-    python3 play.py [--seed N] [--win-lead N] [--ai-seed N]
+    python3 play.py [--ai {random,greedy,heuristic}] [--seed N] [--win-lead N] [--ai-seed N]
 
 The human is always player 0; who plays first each round is decided by the
 rules (random in round 1, then the cumulative leader). FAIRNESS: everything
@@ -17,10 +17,17 @@ import sys
 from rich.console import Console
 
 from sweep import ui
-from sweep.agents import RandomAgent
+from sweep.agents import GreedyAgent, HeuristicAgent, RandomAgent
 from sweep.engine import Game
 
 HUMAN = 0
+
+# Selectable opponents. Each factory takes a `seed` keyword.
+AI_AGENTS = {
+    "random": RandomAgent,
+    "greedy": GreedyAgent,
+    "heuristic": HeuristicAgent,
+}
 
 
 def declaration_phase(console: Console, game: Game, ai) -> bool:
@@ -142,7 +149,9 @@ def run(console: Console, game: Game, ai) -> bool:
 
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(
-        description="Play Sweep in the terminal against a random AI.")
+        description="Play Sweep in the terminal against an AI.")
+    parser.add_argument("--ai", choices=sorted(AI_AGENTS), default="random",
+                        help="opponent type (default: random)")
     parser.add_argument("--seed", type=int, default=None,
                         help="game seed (deck shuffles, first player)")
     parser.add_argument("--win-lead", type=int, default=200,
@@ -153,7 +162,7 @@ def main(argv=None) -> int:
 
     console = Console()
     game = Game(seed=args.seed, win_lead=args.win_lead)
-    ai = RandomAgent(seed=args.ai_seed)
+    ai = AI_AGENTS[args.ai](seed=args.ai_seed)
     try:
         finished = run(console, game, ai)
     except KeyboardInterrupt:
