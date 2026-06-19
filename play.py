@@ -34,7 +34,7 @@ def declaration_phase(console: Console, game: Game, ai) -> bool:
     """Handle the start-of-round declaration. Returns False if the human quits."""
     while True:
         view = game.view(HUMAN)
-        console.clear()
+        ui.clear_screen(console)
         ui.render_header(console, view, game.round_num)
         first = "you play" if game.first_player == HUMAN else "the opponent plays"
         console.print(f"[bold]Round {game.round_num} begins — {first} first.[/bold]")
@@ -51,7 +51,7 @@ def declaration_phase(console: Console, game: Game, ai) -> bool:
         if choice == "quit":
             return False
         if choice == "help":
-            console.clear()
+            ui.clear_screen(console)
             ui.render_help(console)
             if not ui.wait_enter(console):
                 return False
@@ -66,7 +66,7 @@ def human_turn(console: Console, game: Game, opening: bool):
     while True:
         actions = game.legal_actions()
         view = game.view(HUMAN)
-        console.clear()
+        ui.clear_screen(console)
         ui.render_header(console, view, game.round_num)
         ui.render_table_area(console, view)
         ui.render_hand(console, view["hand"])
@@ -78,7 +78,7 @@ def human_turn(console: Console, game: Game, opening: bool):
         if choice == "quit":
             return None
         if choice == "help":
-            console.clear()
+            ui.clear_screen(console)
             ui.render_help(console)
             if not ui.wait_enter(console):
                 return None
@@ -92,7 +92,7 @@ def ai_turn(console: Console, game: Game, ai):
     """Play the AI's move, show it, and wait for ENTER.
     Returns the Action played, or None if input runs out."""
     view = game.view(HUMAN)
-    console.clear()
+    ui.clear_screen(console)
     ui.render_header(console, view, game.round_num)
     ui.render_table_area(console, view)
 
@@ -134,7 +134,7 @@ def run(console: Console, game: Game, ai) -> bool:
         if len(game.round_history) > finished_rounds:  # the round just ended
             summary = ui.round_summary(snapshot, action, player,
                                        game.round_history[-1])
-            console.clear()
+            ui.clear_screen(console)
             diff = game.differential if HUMAN == 0 else -game.differential
             ui.render_round_summary(console, summary, HUMAN,
                                     len(game.round_history), diff)

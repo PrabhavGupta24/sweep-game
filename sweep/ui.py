@@ -311,6 +311,21 @@ def render_help(console: Console) -> None:
 # ------------------------------------------------------- interaction helpers
 
 
+def clear_screen(console: Console) -> None:
+    """Clear the screen *and scrollback* and home the cursor.
+
+    A plain screen-clear homes the cursor but leaves the shell prompt in
+    scrollback, so a frame that's as tall as the window scrolls up by a line
+    and the header's top border slides out of view. Clearing scrollback as
+    well pins every frame to the terminal's top row.
+    """
+    if console.is_terminal:
+        console.file.write("\033[H\033[2J\033[3J")
+        console.file.flush()
+    else:  # not a tty (e.g. tests/pipes): nothing to pin
+        console.clear()
+
+
 def wait_enter(console: Console, message: str = "Press ENTER to continue") -> bool:
     """Pause; returns False if input is exhausted (treated as quitting)."""
     try:
