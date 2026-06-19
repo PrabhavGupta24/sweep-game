@@ -19,7 +19,7 @@ class SweepGame:
         for player in self.players:
             player.unseen_cards = set(self.deck)
 
-        self.round = 0 # Needed??
+        self.round = 0
         self.piles: Dict[int, Pile] = {}
         self.last_to_pick_up: Player = None
         self.point_differential = 0
@@ -126,6 +126,7 @@ class SweepGame:
         first_player.hand.sort()
         first_player.unseen_cards -= set(first_player.hand)
 
+
         # Get actual declared value
         if first_player.is_ai:
             declared = max(card.value for card in first_player.hand)
@@ -162,6 +163,9 @@ class SweepGame:
         del self.deck[:8]
 
         self.play_turn(declared_value=declared)
+
+
+
 
         # Deal remaining cards for first half of round one, starting with player who just played
         for i in range(2):
