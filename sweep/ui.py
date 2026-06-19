@@ -21,7 +21,7 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
-from .cards import card_str, card_suit
+from .cards import card_str, card_suit, card_value
 from .engine import MAJORITY_BONUS, SWEEP_POINTS, TIE_BONUS, ActionKind
 
 RED_SUITS = (1, 2)  # ♥ ♦
@@ -29,28 +29,28 @@ RED_SUITS = (1, 2)  # ♥ ♦
 # ------------------------------------------------------------- card drawing
 
 
-def _card_style(card: int) -> str:
-    return "bold red" if card_suit(card) in RED_SUITS else "bold bright_white"
+def by_value(cards):
+    """Cards ordered ascending by game value, suit as a stable tiebreak."""
+    return sorted(cards, key=lambda c: (card_value(c), card_suit(c)))
 
 
 def render_card_row(cards=(), facedown: int = 0) -> Text:
-    """Cards drawn side by side as small boxes; ``facedown`` adds card backs."""
+    """Cards drawn side by side as single-line chips; ``facedown`` adds backs.
+
+    One line per row (not 3-line boxes) so a full turn screen — header, table,
+    hand, and action menu — fits within a typical terminal height.
+    """
     if not cards and not facedown:
         return Text("(empty)", style="dim italic")
-    top, mid, bot = Text(), Text(), Text()
+    row = Text()
     for card in cards:
-        top.append("╭───╮ ", style="grey50")
-        mid.append("│", style="grey50")
-        mid.append(card_str(card).ljust(3), style=_card_style(card))
-        mid.append("│ ", style="grey50")
-        bot.append("╰───╯ ", style="grey50")
+        fg = "red" if card_suit(card) in RED_SUITS else "black"
+        row.append(f" {card_str(card)} ", style=f"bold {fg} on grey85")
+        row.append(" ")
     for _ in range(facedown):
-        top.append("╭───╮ ", style="blue")
-        mid.append("│", style="blue")
-        mid.append("▒▒▒", style="blue")
-        mid.append("│ ", style="blue")
-        bot.append("╰───╯ ", style="blue")
-    return Text("\n").join([top, mid, bot])
+        row.append(" ▒▒ ", style="bold blue on grey30")
+        row.append(" ")
+    return row
 
 
 # ------------------------------------------------------------ status header
@@ -110,7 +110,7 @@ def render_table_area(console: Console, view: dict, hidden: bool = False,
             render_card_row(facedown=4),
         )
     else:
-        parts = [Text("Loose cards", style="bold"), render_card_row(view["table"])]
+        parts = [Text("Loose cards", style="bold"), render_card_row(by_value(view["table"]))]
         for value in sorted(view["piles"]):
             pile = view["piles"][value]
             if pile["mine"] and pile["opponents"]:
@@ -125,13 +125,13 @@ def render_table_area(console: Console, view: dict, hidden: bool = False,
                 head.append(" (doubled)", style="bold magenta")
             head.append(" — ", style="dim")
             head.append(owner, style=owner_style)
-            parts += [Text(), head, render_card_row(pile["cards"])]
+            parts += [head, render_card_row(by_value(pile["cards"]))]
         body = Group(*parts)
     console.print(Panel(body, title=f"[bold]{title}[/bold]", border_style="green"))
 
 
 def render_hand(console: Console, hand) -> None:
-    console.print(Panel(render_card_row(hand), title="[bold]Your hand[/bold]",
+    console.print(Panel(render_card_row(by_value(hand)), title="[bold]Your hand[/bold]",
                         border_style="blue"))
 
 
