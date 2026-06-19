@@ -58,14 +58,15 @@ Measured results (200 games per pairing, win lead 200, seed 0):
 ```
 pairing (A vs B)         games A wins B wins  win% A           95% CI diff/g (A) rnds/g    sec
 ----------------------------------------------------------------------------------------------
-random vs greedy           200      0    200    0.0% [  0.0%,  1.9%]     -295.2   2.66    3.3
-random vs heuristic        200      0    200    0.0% [  0.0%,  1.9%]     -295.3   2.35    7.2
-greedy vs heuristic        200      0    200    0.0% [  0.0%,  1.9%]     -328.4   1.98    5.6
+random vs greedy           200      0    200    0.0% [  0.0%,  1.9%]     -307.4   2.64    3.3
+random vs heuristic        200      0    200    0.0% [  0.0%,  1.9%]     -297.7   2.33    7.4
+greedy vs heuristic        200      0    200    0.0% [  0.0%,  1.9%]     -328.0   2.01    5.9
 ```
 
-So greedy beats random 200/200 and heuristic beats greedy 200/200 (identical
-sweep at `--seed 1000`); mirror matches of each agent against itself land at
-~50%, confirming the harness has no seat bias. The dominance is driven by
+So greedy beats random 200/200 and heuristic beats greedy 200/200; the same
+ordering holds at `--seed 1000` (heuristic beats greedy 99/100 and random
+100/100, greedy beats random 100/100). Mirror matches of each agent against
+itself land at ~50%, confirming the harness has no seat bias. The dominance is driven by
 sweeps: greedy and random regularly throw onto an empty or near-empty table,
 and the heuristic converts those into +50 sweeps while rarely offering one
 back.
