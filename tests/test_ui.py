@@ -43,13 +43,30 @@ def midgame_with_pile(seed_start=0):
 def test_render_card_row_faceup_and_facedown():
     console, buf = make_console()
     game = Game(seed=1)
-    console.print(ui.render_card_row(game.view(0)["hand"]))
+    hand = game.view(0)["hand"]
+    console.print(ui.render_card_row(hand))
     console.print(ui.render_card_row(facedown=4))
     console.print(ui.render_card_row())
     out = buf.getvalue()
-    assert "╭───╮" in out
-    assert "▒▒▒" in out
+    from sweep.cards import card_str
+    assert card_str(hand[0]) in out  # the card's rank+suit is shown
+    assert "▒▒" in out               # face-down back
     assert "(empty)" in out
+
+
+def test_render_hand_is_sorted_by_value():
+    from sweep.cards import card_from, card_value
+
+    console, buf = make_console()
+    # Deliberately unsorted, mixed suits.
+    hand = [card_from(s) for s in ("KS", "2H", "10D", "2S", "AC")]
+    ui.render_hand(console, hand)
+    out = buf.getvalue()
+    # The rendered order of rank+suit tokens must be ascending by value.
+    import re
+    shown = re.findall(r"(?:10|[2-9AJQK])[♠♥♦♣]", out)
+    values = [card_value(card_from(tok)) for tok in shown]
+    assert values == sorted(values)
 
 
 def test_render_full_turn_screen():
@@ -105,7 +122,7 @@ def test_render_declaration_screen_hides_table():
     ui.render_hand(console, view["hand"])
     out = buf.getvalue()
     assert "face down" in out
-    assert "▒▒▒" in out
+    assert "▒▒" in out
 
 
 def test_render_ai_move_and_help():
