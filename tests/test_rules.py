@@ -464,8 +464,14 @@ def test_fuzz_invariants_over_random_games():
             assert total == 52
             for p in (0, 1):
                 assert g.unseen[p] == set(g.deck) | set(g.hands[1 - p])
+            for hand in g.hands:
+                hand_values = [card_value(c) for c in hand]
+                assert hand_values == sorted(hand_values), "hands stay value-sorted"
             actions = g.legal_actions()
             assert actions, "a player must always have a legal action"
+            played_values = [card_value(a.card) for a in actions]
+            assert played_values == sorted(played_values), \
+                "legal actions follow the hand's value order"
             action = rng.choice(actions)
             pre_sweeps = g.sweeps[g.turn]
             pre_round = g.round_num
