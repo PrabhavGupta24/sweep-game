@@ -46,6 +46,10 @@ def determinize(game, player, rng):
                 hand.append(pool.pop(i))
                 break
     need = hand_size - len(hand)
+    # Re-shuffle: popping the *first* hit of each forced value conditions the
+    # leftover order (cards before the hit stay in front), which would bias
+    # the fill against remaining same-value copies and skew the deck order.
+    rng.shuffle(pool)
     hand += pool[:need]
     det.hands[opp] = sorted(hand, key=_hand_order)
     det.deck = pool[need:]  # leftover unseen cards, already in random order

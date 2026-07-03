@@ -105,7 +105,9 @@ def test_determinize_partitions_unseen():
         # Engine invariants: my state untouched, opponent's unseen recomputed.
         assert det.hands[p] == g.hands[p]
         assert det.table == g.table
-        assert det.unseen[opp] == set(det.deck) | set(det.hands[p])
+        # Derived from the view, not restated from the implementation:
+        # unseen-to-opponent = the sampled deck plus my (real) hand.
+        assert det.unseen[opp] == (set(view["unseen"]) - hand) | set(g.hands[p])
 
 
 def test_determinize_does_not_leak_the_true_hand():
@@ -122,7 +124,7 @@ def test_determinize_does_not_leak_the_true_hand():
         counts.update(sampled & true_hand)
     assert exact < 200  # the true hand must not be reproduced every time
     for c in true_hand:  # each true card sampled near its base rate
-        assert expected - 0.25 <= counts[c] / 200 <= expected + 0.25
+        assert expected - 0.10 <= counts[c] / 200 <= expected + 0.10
 
 
 def test_determinize_honors_pile_reserve_invariant():
@@ -138,6 +140,26 @@ def test_determinize_honors_pile_reserve_invariant():
     for i in range(100):
         det = determinize(g, 0, random.Random(i))
         assert any(card_value(c) == 9 for c in det.hands[1])
+
+
+def test_determinize_fill_is_uniform_after_forced_reserve():
+    # Two unseen 9s, opp-created 9-pile: after one 9 is forced into the hand,
+    # the other must land in the remaining slots at the plain fill rate,
+    # (hand_size - 1) / (pool - 1) = 3/9. Popping the first shuffled hit
+    # without re-shuffling under-sampled this to ~0.13.
+    g = make_game(
+        hand0=["2H", "3S", "4S", "5S"],
+        hand1=["9H", "2C", "3C", "4C"],
+        piles=[(9, ["4D", "5D"], [1])],
+        deck=["9D", "6C", "7C", "8C", "6D", "7D"],
+    )
+    g.unseen[0] = set(g.hands[1]) | set(g.deck)
+    n = 2000
+    both = sum(
+        sum(card_value(c) == 9 for c in determinize(g, 0, random.Random(i)).hands[1]) == 2
+        for i in range(n)
+    )
+    assert abs(both / n - 3 / 9) < 0.05  # ~4.7 sigma at n=2000
 
 
 def test_determinize_second_half_is_exact():

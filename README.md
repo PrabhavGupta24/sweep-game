@@ -63,6 +63,10 @@ python3 evaluate.py random greedy heuristic -n 200 --win-lead 200 --seed 0
 `-n` is games per pairing; each game seed is played twice with seats swapped to
 cancel any seat advantage. Win rates come with Wilson 95% confidence intervals.
 
+Note: `ismcts` at its default budget (200 simulations) takes about a second per
+decision — roughly 1000x the baselines, ~50s per game. Pass `--sims 50` (or
+lower) to `evaluate.py` for quicker, weaker evaluations.
+
 Measured results (200 games per pairing, win lead 200, seed 0):
 
 ```
