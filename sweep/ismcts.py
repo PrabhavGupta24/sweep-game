@@ -97,7 +97,12 @@ class ISMCTSAgent(Agent):
 
     name = "ismcts"
 
-    def __init__(self, seed=None, n_sims=200, c=0.7):
+    # c=0.35 measured stronger than 0.7 and 1.0 vs HeuristicAgent on paired
+    # deals (10 games each, base_seed 5000: 3/10, diff -110.8 vs 1/10, -213.6
+    # vs 0/10, -240.6) — rewards live in roughly [-1, 1] (round swing / 100),
+    # so a smaller exploration constant exploits more. Small samples; the
+    # ordering was monotone across all three values.
+    def __init__(self, seed=None, n_sims=200, c=0.35):
         self.rng = random.Random(seed)
         self.n_sims = n_sims
         self.c = c
