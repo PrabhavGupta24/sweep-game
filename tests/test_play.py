@@ -4,6 +4,7 @@ import pytest
 
 import play
 from sweep.agents import GreedyAgent, HeuristicAgent, RandomAgent
+from sweep.ismcts import ISMCTSAgent
 
 
 def test_registry_maps_names_to_agents():
@@ -11,6 +12,7 @@ def test_registry_maps_names_to_agents():
         "random": RandomAgent,
         "greedy": GreedyAgent,
         "heuristic": HeuristicAgent,
+        "ismcts": ISMCTSAgent,
     }
     for name, cls in play.AI_AGENTS.items():
         assert cls(seed=1).name == name  # the agent knows its own name

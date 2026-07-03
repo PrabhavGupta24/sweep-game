@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Play Sweep in the terminal against an AI.
 
-    python3 play.py [--ai {random,greedy,heuristic}] [--seed N] [--win-lead N] [--ai-seed N]
+    python3 play.py [--ai {random,greedy,heuristic,ismcts}] [--seed N] [--win-lead N] [--ai-seed N]
 
 The human is always player 0; who plays first each round is decided by the
 rules (random in round 1, then the cumulative leader). FAIRNESS: everything
@@ -19,6 +19,7 @@ from rich.console import Console
 from sweep import ui
 from sweep.agents import GreedyAgent, HeuristicAgent, RandomAgent
 from sweep.engine import Game
+from sweep.ismcts import ISMCTSAgent
 
 HUMAN = 0
 
@@ -27,6 +28,7 @@ AI_AGENTS = {
     "random": RandomAgent,
     "greedy": GreedyAgent,
     "heuristic": HeuristicAgent,
+    "ismcts": ISMCTSAgent,
 }
 
 

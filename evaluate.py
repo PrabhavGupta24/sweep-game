@@ -12,11 +12,13 @@ import argparse
 
 from sweep.agents import GreedyAgent, HeuristicAgent, RandomAgent
 from sweep.arena import round_robin
+from sweep.ismcts import ISMCTSAgent
 
 REGISTRY = {
     "random": RandomAgent,
     "greedy": GreedyAgent,
     "heuristic": HeuristicAgent,
+    "ismcts": ISMCTSAgent,
 }
 
 

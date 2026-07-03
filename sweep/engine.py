@@ -371,6 +371,40 @@ class Game:
         else:
             self._start_round()
 
+    # ------------------------------------------------------------------ copy
+
+    def clone(self, rng=None):
+        """Fast manual copy for search rollouts (no copy.deepcopy).
+
+        The clone gets `rng` (else a fresh unseeded Random) so stepping it
+        never advances the original's stream. Pile is frozen and shareable;
+        every mutable container is copied.
+        """
+        g = object.__new__(Game)
+        g.rng = rng if rng is not None else random.Random()
+        g.win_lead = self.win_lead
+        g.round_num = self.round_num
+        g.differential = self.differential
+        g.round_history = list(self.round_history)
+        g.game_over = self.game_over
+        g.winner = self.winner
+        g.first_player = self.first_player
+        g._facedown = None if self._facedown is None else list(self._facedown)
+        g.hands = [list(self.hands[0]), list(self.hands[1])]
+        g.deck = list(self.deck)
+        g.table = list(self.table)
+        g.piles = dict(self.piles)
+        g.captured = [list(self.captured[0]), list(self.captured[1])]
+        g.points = list(self.points)
+        g.sweeps = list(self.sweeps)
+        g.last_capturer = self.last_capturer
+        g.declared = self.declared
+        g.opening = self.opening
+        g.turn = self.turn
+        g.awaiting = self.awaiting
+        g.unseen = [set(self.unseen[0]), set(self.unseen[1])]
+        return g
+
     # ------------------------------------------------------------ observation
 
     def view(self, p):

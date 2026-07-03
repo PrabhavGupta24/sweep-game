@@ -44,6 +44,16 @@ Baseline agents live in `sweep/agents.py`:
   is unlikely to hold the capture card, denies opponent piles via raises,
   avoids throwing point cards, and avoids leaving the table sweepable.
 
+### ISMCTS search agent
+
+`ismcts` (`sweep/ismcts.py`) is a single-observer Information Set Monte Carlo
+Tree Search player: each decision it determinizes the unseen cards (resampling
+the opponent's hand and the deck from its own information set, respecting the
+pile-reserve rule invariant) and runs UCT tree search over the round, backing
+up the round's score swing. In the second half the deck is empty, so the
+determinization is the opponent's exact hand and the search plays
+perfect-information endgames.
+
 Run a round-robin with the evaluation harness (`sweep/arena.py`):
 
 ```
