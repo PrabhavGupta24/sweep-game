@@ -108,7 +108,10 @@ class HeuristicAgent(Agent):
     DENIAL = 0.5              # raising away an opponent pile cancels their reserve plan
     LOCK_BONUS = 1.0          # doubling our own pile makes it raise-proof
     THREAT_REST = 0.25        # secondary opponent threats matter less than the best one
-    OPP_OWN_PILE_P = 0.85     # an opponent who built a pile almost surely kept its capture card
+    OPP_OWN_PILE_P = 1.0      # rule invariant, not an estimate: builds/raises require a second
+                              # copy of the value, and the reserve rule then pins a creator's
+                              # last copy to capturing the pile — so a live pile's creator
+                              # always holds a capture card
 
     def __init__(self, seed=None):
         self.rng = random.Random(seed)

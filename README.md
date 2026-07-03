@@ -58,9 +58,9 @@ Measured results (200 games per pairing, win lead 200, seed 0):
 ```
 pairing (A vs B)         games A wins B wins  win% A           95% CI diff/g (A) rnds/g    sec
 ----------------------------------------------------------------------------------------------
-random vs greedy           200      0    200    0.0% [  0.0%,  1.9%]     -307.4   2.64    3.3
-random vs heuristic        200      0    200    0.0% [  0.0%,  1.9%]     -297.7   2.33    7.4
-greedy vs heuristic        200      0    200    0.0% [  0.0%,  1.9%]     -328.0   2.01    5.9
+random vs greedy           200      0    200    0.0% [  0.0%,  1.9%]     -307.4   2.64    5.0
+random vs heuristic        200      0    200    0.0% [  0.0%,  1.9%]     -297.3   2.32   11.2
+greedy vs heuristic        200      0    200    0.0% [  0.0%,  1.9%]     -328.0   2.01    9.0
 ```
 
 So greedy beats random 200/200 and heuristic beats greedy 200/200; the same
