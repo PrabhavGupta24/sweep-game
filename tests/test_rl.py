@@ -47,12 +47,13 @@ def midgame_after_rounds(seed=0, rounds=2):
     return g
 
 
-def decisions_of_round(seed):
-    """(view, awaiting, candidates) for every decision of one random round."""
-    g = Game(seed=seed)
+def decisions_of_round(seed, rounds=1):
+    """(view, awaiting, candidates) for every decision of `rounds` random
+    rounds (win_lead is disabled so later rounds are always reached)."""
+    g = Game(seed=seed, win_lead=10**6)
     rng = random.Random(seed)
     out = []
-    while len(g.round_history) == 0 and not g.game_over:
+    while len(g.round_history) < rounds and not g.game_over:
         if g.awaiting == "declare":
             player = g.first_player
             candidates = [(DECLARE, v) for v in g.declare_options()]
@@ -133,7 +134,8 @@ def test_round_result_matches_ui_reconstruction():
                 assert summary["card_points"] == rr.card_points
                 assert summary["bonus"] == rr.majority_bonus
                 assert summary["sweeps"] == rr.sweeps
-                assert summary["scores"] == rr.scores
+                # No summary["scores"] check: round_summary echoes back the
+                # rr.scores we pass it, so that comparison could never fail.
 
 
 def test_clone_copies_round_results_as_new_list():
@@ -149,8 +151,10 @@ def test_clone_copies_round_results_as_new_list():
 
 
 def test_sizes_dtype_and_range():
-    for seed in range(4):
-        for view, awaiting, candidates in decisions_of_round(seed):
+    # Seed 3 runs 4 rounds so the range guarantee is also exercised where
+    # points, sweeps, and the cumulative differential are largest.
+    for seed, rounds in ((0, 1), (1, 1), (2, 1), (3, 4)):
+        for view, awaiting, candidates in decisions_of_round(seed, rounds):
             obs = encode_observation(view, awaiting)
             assert obs.shape == (OBS_SIZE,)
             assert obs.dtype == np.float32
@@ -360,6 +364,22 @@ def test_env_continue_same_game_plays_next_round():
     rr = env.game.round_results[-1]
     assert rewards == ((rr.scores[0] - rr.scores[1]) / 100.0,
                        (rr.scores[1] - rr.scores[0]) / 100.0)
+
+
+def test_env_step_index_bounds_and_candidates_copy():
+    env = SweepEnv(seed=0)
+    decision = env.reset()  # the round-opening declare decision
+    n = len(decision["candidates"])
+    with pytest.raises(IndexError):  # a -1 sentinel must not mean "last move"
+        env.step(-1)
+    with pytest.raises(IndexError):
+        env.step(n)
+    # The decision's candidate list is a copy: consumer mutation cannot
+    # desync the indices step() resolves internally.
+    first = decision["candidates"][0]
+    decision["candidates"].clear()
+    env.step(0)  # still applies the original candidate 0
+    assert env.game.declared == first[1]
 
 
 def test_env_step_requires_pending_decision():

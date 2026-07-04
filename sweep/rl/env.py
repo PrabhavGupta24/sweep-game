@@ -16,8 +16,10 @@ only, so agents trained on the stream can never see hidden information.
 
 An episode ends when the round does (the engine auto-starts the next round;
 the env stops there). Rewards come from the engine's authoritative
-RoundResult: reward[p] = (scores[p] - scores[1-p]) / 100. Evaluation code can
-opt into the same game's next round with continue_same_game().
+RoundResult: reward[p] = (scores[p] - scores[1-p]) / 100. Rewards are
+zero-sum but NOT confined to [-1, 1]: sweeps are worth 50 each, so an uneven
+sweep split can push |reward| above 1. Evaluation code can opt into the same
+game's next round with continue_same_game().
 """
 
 from __future__ import annotations
@@ -57,6 +59,10 @@ class SweepEnv:
         """
         if self._candidates is None:
             raise RuntimeError("no pending decision — call reset() first")
+        if not 0 <= index < len(self._candidates):  # reject negatives too
+            raise IndexError(
+                f"candidate index {index} out of range "
+                f"[0, {len(self._candidates)})")
         game = self.game
         finished = len(game.round_results)
         item = self._candidates[index]
@@ -101,6 +107,8 @@ class SweepEnv:
         return {
             "player": player,
             "obs": encode_observation(view, game.awaiting),
-            "candidates": candidates,
+            # A copy: mutating the returned list cannot desync the indices
+            # step() resolves against self._candidates.
+            "candidates": list(candidates),
             "encoded_candidates": encoded,
         }

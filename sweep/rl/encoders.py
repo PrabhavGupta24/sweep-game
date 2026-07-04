@@ -9,7 +9,9 @@ Observation layout (OBS_SIZE = 253 float32 values):
     [0:52)      hand multi-hot
     [52:104)    loose table cards multi-hot
     [104:156)   pile cards multi-hot (all piles pooled)
-    [156:208)   unseen cards multi-hot (opponent's hand + the deck, as a set)
+    [156:208)   unseen cards multi-hot — view['unseen']: opponent's hand + the
+                deck as a set, plus, during the declare phase only, the four
+                facedown table cards (not yet revealed to either player)
     [208:238)   per pile value 9..13, a block of 6 floats:
                 exists, mine, opponents, doubled,
                 card count / 13 (clipped to 1), card points / 20 (clipped to 1)
