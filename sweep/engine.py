@@ -93,6 +93,26 @@ class Pile:
         return f"Pile of {self.value}{tag}: " + " ".join(card_str(c) for c in self.cards)
 
 
+@dataclass(frozen=True)
+class RoundResult:
+    """Authoritative end-of-round breakdown, recorded before per-round resets.
+
+    Per-player tuples are indexed by absolute player (0, 1). For each player,
+    scores == card_points + majority_bonus + 50 * sweeps, and scores matches
+    the round's round_history entry. leftover_cards are the cards still on the
+    table (loose + piles) when the round ended; they were awarded to
+    leftover_to (the round's last capturer), or to nobody when it is None.
+    """
+
+    scores: tuple
+    card_points: tuple
+    majority_bonus: tuple
+    sweeps: tuple
+    captured_counts: tuple
+    leftover_cards: tuple
+    leftover_to: int | None
+
+
 class Game:
     """A full multi-round game of Sweep between players 0 and 1."""
 
@@ -102,6 +122,7 @@ class Game:
         self.round_num = 0
         self.differential = 0  # cumulative: player 0 score minus player 1 score
         self.round_history = []  # (p0 round score, p1 round score) per finished round
+        self.round_results = []  # RoundResult per finished round (never reset)
         self.game_over = False
         self.winner = None
         self.first_player = self.rng.randrange(2)  # round 1: random
@@ -340,28 +361,40 @@ class Game:
         self.unseen[p].difference_update(dealt)
 
     def _end_round(self):
-        if self.last_capturer is not None and (self.table or self.piles):
-            leftovers = list(self.table)
-            for pile in self.piles.values():
-                leftovers += pile.cards
-            self.points[self.last_capturer] += sum(card_points(c) for c in leftovers)
-            self.captured[self.last_capturer] += leftovers
+        leftovers = list(self.table)
+        for pile in self.piles.values():
+            leftovers += pile.cards
+        leftover_to = self.last_capturer if leftovers else None
+        if leftover_to is not None:
+            self.points[leftover_to] += sum(card_points(c) for c in leftovers)
+            self.captured[leftover_to] += leftovers
         self.table = []
         self.piles = {}
 
         c0, c1 = len(self.captured[0]), len(self.captured[1])
         if c0 > c1:
-            self.points[0] += MAJORITY_BONUS
+            bonus = (MAJORITY_BONUS, 0)
         elif c1 > c0:
-            self.points[1] += MAJORITY_BONUS
+            bonus = (0, MAJORITY_BONUS)
         else:
-            self.points[0] += TIE_BONUS
-            self.points[1] += TIE_BONUS
+            bonus = (TIE_BONUS, TIE_BONUS)
+        card_pts = (self.points[0], self.points[1])
+        self.points[0] += bonus[0]
+        self.points[1] += bonus[1]
 
         scores = (
             self.points[0] + SWEEP_POINTS * self.sweeps[0],
             self.points[1] + SWEEP_POINTS * self.sweeps[1],
         )
+        self.round_results.append(RoundResult(
+            scores=scores,
+            card_points=card_pts,
+            majority_bonus=bonus,
+            sweeps=tuple(self.sweeps),
+            captured_counts=(c0, c1),
+            leftover_cards=tuple(leftovers),
+            leftover_to=leftover_to,
+        ))
         self.round_history.append(scores)
         self.differential += scores[0] - scores[1]
         if abs(self.differential) >= self.win_lead:
@@ -386,6 +419,7 @@ class Game:
         g.round_num = self.round_num
         g.differential = self.differential
         g.round_history = list(self.round_history)
+        g.round_results = list(self.round_results)
         g.game_over = self.game_over
         g.winner = self.winner
         g.first_player = self.first_player
