@@ -8,14 +8,19 @@ from sweep.ismcts import ISMCTSAgent
 
 
 def test_registry_maps_names_to_agents():
-    assert play.AI_AGENTS == {
+    scripted = {
         "random": RandomAgent,
         "greedy": GreedyAgent,
         "heuristic": HeuristicAgent,
         "ismcts": ISMCTSAgent,
     }
-    for name, cls in play.AI_AGENTS.items():
+    assert set(play.AI_AGENTS) == set(scripted) | {"neural"}
+    for name, cls in scripted.items():
+        assert play.AI_AGENTS[name] is cls
         assert cls(seed=1).name == name  # the agent knows its own name
+    # The neural entry is a lazy factory (torch loads only when chosen);
+    # without a checkpoint it builds a random-init agent that knows its name.
+    assert play.AI_AGENTS["neural"](seed=1).name == "neural"
 
 
 def _capture_agent(monkeypatch):

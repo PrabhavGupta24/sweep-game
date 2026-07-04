@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 """Play Sweep in the terminal against an AI.
 
-    python3 play.py [--ai {random,greedy,heuristic,ismcts}] [--seed N] [--win-lead N] [--ai-seed N]
+    python3 play.py [--ai {random,greedy,heuristic,ismcts,neural}] [--ckpt PATH]
+                    [--seed N] [--win-lead N] [--ai-seed N]
+
+The neural opponent plays a trained checkpoint: `--ai neural --ckpt runs/best.pt`.
 
 The human is always player 0; who plays first each round is decided by the
 rules (random in round 1, then the cumulative leader). FAIRNESS: everything
@@ -23,12 +26,20 @@ from sweep.ismcts import ISMCTSAgent
 
 HUMAN = 0
 
+def _neural_agent(seed=None, ckpt_path=None):
+    """Factory for the neural opponent; torch loads only when it is chosen."""
+    from sweep.rl.agent import NeuralAgent
+
+    return NeuralAgent(ckpt_path=ckpt_path, seed=seed)
+
+
 # Selectable opponents. Each factory takes a `seed` keyword.
 AI_AGENTS = {
     "random": RandomAgent,
     "greedy": GreedyAgent,
     "heuristic": HeuristicAgent,
     "ismcts": ISMCTSAgent,
+    "neural": _neural_agent,  # also needs ckpt_path; see main()
 }
 
 
@@ -160,11 +171,19 @@ def main(argv=None) -> int:
                         help="cumulative lead needed to win (default 200)")
     parser.add_argument("--ai-seed", type=int, default=None,
                         help="seed for the AI's choices")
+    parser.add_argument("--ckpt", default=None,
+                        help="checkpoint path for the neural opponent (required with it)")
     args = parser.parse_args(argv)
+
+    kwargs = {"seed": args.ai_seed}
+    if args.ai == "neural":
+        if args.ckpt is None:
+            parser.error("--ai neural requires --ckpt PATH")
+        kwargs["ckpt_path"] = args.ckpt
 
     console = Console()
     game = Game(seed=args.seed, win_lead=args.win_lead)
-    ai = AI_AGENTS[args.ai](seed=args.ai_seed)
+    ai = AI_AGENTS[args.ai](**kwargs)
     try:
         finished = run(console, game, ai)
     except KeyboardInterrupt:
