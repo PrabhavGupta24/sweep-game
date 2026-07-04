@@ -44,6 +44,16 @@ Baseline agents live in `sweep/agents.py`:
   is unlikely to hold the capture card, denies opponent piles via raises,
   avoids throwing point cards, and avoids leaving the table sweepable.
 
+### ISMCTS search agent
+
+`ismcts` (`sweep/ismcts.py`) is a single-observer Information Set Monte Carlo
+Tree Search player: each decision it determinizes the unseen cards (resampling
+the opponent's hand and the deck from its own information set, respecting the
+pile-reserve rule invariant) and runs UCT tree search over the round, backing
+up the round's score swing. In the second half the deck is empty, so the
+determinization is the opponent's exact hand and the search plays
+perfect-information endgames.
+
 Run a round-robin with the evaluation harness (`sweep/arena.py`):
 
 ```
@@ -53,7 +63,49 @@ python3 evaluate.py random greedy heuristic -n 200 --win-lead 200 --seed 0
 `-n` is games per pairing; each game seed is played twice with seats swapped to
 cancel any seat advantage. Win rates come with Wilson 95% confidence intervals.
 
-Measured results (200 games per pairing, win lead 200, seed 0):
+Note: `ismcts` at its default budget (200 simulations) takes about a second per
+decision — roughly 1000x the baselines, ~50s per game. Pass `--sims 50` (or
+lower) to `evaluate.py` for quicker, weaker evaluations.
+
+Measured ISMCTS results (200 simulations, c=0.7, win lead 200, seat-swapped):
+
+```
+pairing (A vs B)         games A wins B wins  win% A           95% CI diff/g (A) rnds/g
+----------------------------------------------------------------------------------------
+ismcts vs random            20     20      0  100.0% [ 83.9%,100.0%]     +285.7   2.20
+ismcts vs greedy            30     28      2   93.3% [ 78.7%, 98.2%]     +255.5   2.03
+ismcts vs heuristic         40      2     38    5.0% [  1.4%, 16.5%]     -236.8   8.18
+```
+
+Budget scaling vs heuristic (same 10 deals per row, c=0.7):
+
+```
+n_sims                   games A wins B wins  win% A diff/g (A)
+---------------------------------------------------------------
+50                          10      0     10    0.0%     -258.8
+200                         10      1      9   10.0%     -213.6
+600                         10      2      8   20.0%     -160.8
+```
+
+Search crushes the blind baselines — it never lost to random and dropped only
+two of thirty games to greedy — but it does not beat the hand-crafted
+heuristic: 2/40 at 200 simulations, and even at 600 simulations only 2/10.
+Strength does scale with budget (0/10 → 1/10 → 2/10 on identical deals, mean
+deficit shrinking -258.8 → -213.6 → -160.8), and the losses are far closer
+than the baselines': matches run ~8 rounds versus ~2 when the heuristic plays
+random or greedy, i.e. ismcts concedes roughly 29 points a round where the
+baselines concede 130-160 and are blown out immediately. The
+second-half perfect-information effect (once the deck is empty every
+determinization is the opponent's exact hand, so the search plays exact
+endgames) is the most plausible reason the losses stay close, but it is not
+enough to overcome the heuristic's stronger first-half play, where the
+determinized rollouts are too noisy to reliably punish builds or defend
+sweeps. A small exploration-constant sweep on paired deals (c in
+{0.35, 0.7, 1.0} at 200 sims vs heuristic, 10 games each: 3/10 with diff
+-110.8, vs 1/10 at -213.6, vs 0/10 at -240.6) favored c=0.35, which is now the
+default; the tables above were measured at the then-default c=0.7.
+
+Baseline measured results (200 games per pairing, win lead 200, seed 0):
 
 ```
 pairing (A vs B)         games A wins B wins  win% A           95% CI diff/g (A) rnds/g    sec

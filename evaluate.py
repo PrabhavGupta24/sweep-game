@@ -6,17 +6,22 @@ Usage:
 
 `-n` is games per pairing, split across seat-swapped pairs (each game seed is
 played twice with seats swapped).
+
+`ismcts` at its default budget takes ~1s per decision (~1000x the baselines);
+pass e.g. `--sims 50` for quicker, weaker evaluations.
 """
 
 import argparse
 
 from sweep.agents import GreedyAgent, HeuristicAgent, RandomAgent
 from sweep.arena import round_robin
+from sweep.ismcts import ISMCTSAgent
 
 REGISTRY = {
     "random": RandomAgent,
     "greedy": GreedyAgent,
     "heuristic": HeuristicAgent,
+    "ismcts": ISMCTSAgent,
 }
 
 
@@ -30,13 +35,21 @@ def main():
     parser.add_argument("--win-lead", type=int, default=200,
                         help="cumulative lead that ends a game (default 200)")
     parser.add_argument("--seed", type=int, default=0, help="base seed (default 0)")
+    parser.add_argument("--sims", type=int, default=None,
+                        help="ismcts simulations per decision (default: agent default)")
     args = parser.parse_args()
 
     names = list(dict.fromkeys(args.agents))  # dedupe, keep order
     if len(names) < 2:
         parser.error("need at least two distinct agents")
 
-    factories = {name: (lambda s, cls=REGISTRY[name]: cls(seed=s)) for name in names}
+    def factory(name):
+        cls = REGISTRY[name]
+        if name == "ismcts" and args.sims is not None:
+            return lambda s: cls(seed=s, n_sims=args.sims)
+        return lambda s: cls(seed=s)
+
+    factories = {name: factory(name) for name in names}
     results = round_robin(factories, args.n_games, base_seed=args.seed,
                           win_lead=args.win_lead)
 
