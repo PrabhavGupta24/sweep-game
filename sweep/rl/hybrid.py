@@ -16,7 +16,12 @@ perspective, ``Q(a) + c_puct * P(a) * sqrt(A(a)) / (1 + N(a))`` over the
 det-legal actions, where ``P`` is the (cached, renormalized) policy prior,
 ``A`` the availability count and ``N`` the visit count; there is no separate
 expand-uniformly step — selecting an unvisited action IS the expansion. See
-_puct_act. The ``priors=False`` code path is untouched: it delegates verbatim
+_puct_act. Note the availability numerator is per-child, not the parent's total
+visit count: an action still without a child has A pinned to 1 (avail is bumped
+only for actions already in ``children``; see _puct_act), so an unvisited action
+scores a constant ``c_puct * P`` — a deliberate departure from AlphaZero's
+``sqrt(sum_b N(b))`` numerator that trusts the policy prior more (a confidently
+low-prior move can stay unexpanded within the budget). The ``priors=False`` code path is untouched: it delegates verbatim
 to ISMCTSAgent.act, preserving the shipped rng stream and decisions
 seed-for-seed.
 
@@ -180,7 +185,10 @@ class HybridAgent(ISMCTSAgent):
         the mover's perspective — the child stores W from the parent-mover's
         view (negamax backprop) — with Q = 0 for an unvisited action (neutral
         first-play urgency). Selecting an unvisited action IS the expansion, so
-        scores must stay finite for N = 0.
+        scores must stay finite for N = 0. An unvisited action has no child yet,
+        so its avail is taken as 1 (avail is only bumped for actions already in
+        ``children``): its exploration term is a constant ``c_puct * P``, not a
+        parent-visit-growing bonus — see the class docstring's note on this.
         """
         children = node.children
         total = sum(node.priors[a] for a in legal)
@@ -216,6 +224,14 @@ class HybridAgent(ISMCTSAgent):
         tree = _PriorNode()
         # The root is the searching player's true info set, so its priors come
         # from the real view (not a leak); interior nodes use det views.
+        # Load-bearing invariant: every det-legal root action is in `actions`,
+        # so _puct_select's node.priors[a] lookup never KeyErrors at the root
+        # even though _ensure_priors is skipped for the root below. It holds
+        # because determinize resamples only the opponent hand + deck (same
+        # sizes) and legal_actions depends only on the mover's own hand, table,
+        # piles, opening/declared and _is_final_play (deck emptiness + hand
+        # sizes) — all identical at the root across determinizations. A future
+        # determinize that alters any of these must top up root priors too.
         self._ensure_priors(tree, game.view(root), actions)
         for _ in range(self.n_sims):
             it_rng = random.Random(self.rng.getrandbits(64))

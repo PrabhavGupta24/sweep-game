@@ -282,18 +282,28 @@ def _trajectory(factory, seed, n_plays):
     return trace
 
 
-def test_priors_false_uses_base_class_act_verbatim():
-    """priors=False must take ISMCTSAgent.act with no HybridAgent override
-    effect: the bound act, invoked with priors=False, dispatches straight to
-    the base search (same rng stream, same choices, seed-for-seed)."""
+def test_priors_false_uses_base_class_act_verbatim(monkeypatch):
+    """priors=False dispatches HybridAgent.act straight to ISMCTSAgent.act, and
+    priors=True does NOT — asserted by spying on the base method, not merely by
+    determinism (the previous version left the agent unused and only checked two
+    identical priors=False runs, which a shared-code regression would pass)."""
+    calls = {"base": 0}
+    real_base_act = ISMCTSAgent.act
+
+    def spy(self, game):
+        calls["base"] += 1
+        return real_base_act(self, game)
+
+    monkeypatch.setattr(ISMCTSAgent, "act", spy)
+
+    g = live_midround_game(turn=0)
     off = HybridAgent(net=make_net(), seed=5, n_sims=8, priors=False)
-    # The override exists (act is defined on HybridAgent), but with priors=False
-    # it forwards verbatim to the base loop; assert by identical trajectory.
-    a = _trajectory(lambda: HybridAgent(net=make_net(0), seed=5, n_sims=8,
-                                        priors=False), 6, 40)
-    b = _trajectory(lambda: HybridAgent(net=make_net(0), seed=5, n_sims=8,
-                                        priors=False), 6, 40)
-    assert a == b  # seeded determinism of the priors=False path
+    off.act(g)
+    assert calls["base"] == 1  # priors=False forwarded to the base loop
+
+    on = HybridAgent(net=make_net(), seed=5, n_sims=8, priors=True)
+    on.act(g)
+    assert calls["base"] == 1  # priors=True took the PUCT path, not the base
 
 
 @pytest.mark.parametrize("seed", [6, 21])
@@ -347,13 +357,25 @@ def test_puct_same_seed_is_deterministic():
 
 def test_puct_single_legal_action_shortcircuits():
     """One legal action: PUCT returns it without touching the net (mirrors the
-    base class fast path)."""
+    base class fast path). Spies on the net to prove neither the policy head
+    (__call__) nor the value head (value_only) is invoked."""
     g = make_game(hand0=["2H"], hand1=["3C"], table=[], deck=())
     g.unseen = [set(g.hands[1]), set(g.hands[0])]
-    agent = HybridAgent(net=make_net(), seed=0, n_sims=8, priors=True)
+    recorder = RecorderNet(make_net())
+    value_calls = {"n": 0}
+    real_value_only = recorder.value_only
+
+    def counting_value_only(obs_np):
+        value_calls["n"] += 1
+        return real_value_only(obs_np)
+
+    recorder.value_only = counting_value_only
+    agent = HybridAgent(net=recorder, seed=0, n_sims=8, priors=True)
+    assert len(g.legal_actions()) == 1
     action = agent.act(g)
     assert action in g.legal_actions()
-    assert len(g.legal_actions()) == 1
+    assert recorder.obs_seen == []  # policy head never called
+    assert value_calls["n"] == 0  # value head never called
 
 
 # ---------------------------------------------------------------------- CLI
