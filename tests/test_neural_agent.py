@@ -17,6 +17,7 @@ from sweep.engine import Game
 from sweep.rl import NeuralAgent
 from sweep.rl.model import PolicyValueNet
 from sweep.rl.ppo import save_checkpoint
+from test_agents import drive_checked_agents
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
@@ -26,25 +27,6 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 def make_net(seed=0):
     torch.manual_seed(seed)
     return PolicyValueNet()
-
-
-def drive_checked_pair(agents, seed, win_lead=100):
-    """drive_checked (test_agents) for two pre-built agents: play a full
-    game, asserting every choice comes from the legal sets."""
-    game = Game(seed=seed, win_lead=win_lead)
-    trace = []
-    while not game.game_over:
-        if game.awaiting == "declare":
-            v = agents[game.first_player].declare(game)
-            assert v in game.declare_options()
-            trace.append(("declare", v))
-            game.declare(v)
-        else:
-            action = agents[game.turn].act(game)
-            assert action in game.legal_actions()
-            trace.append(action)
-            game.step(action)
-    return game, trace
 
 
 def save_random_ckpt(tmp_path, seed=0):
@@ -61,7 +43,7 @@ def test_neural_plays_legal_full_game_vs_random(neural_seat):
     agents = [None, None]
     agents[neural_seat] = NeuralAgent(net=make_net(neural_seat))
     agents[1 - neural_seat] = RandomAgent(seed=neural_seat + 10)
-    game, trace = drive_checked_pair(agents, seed=neural_seat)
+    game, trace = drive_checked_agents(agents, seed=neural_seat)
     assert game.winner in (0, 1)
     assert trace
 
@@ -72,7 +54,7 @@ def test_neural_plays_legal_full_game_vs_random(neural_seat):
 def test_temperature_zero_is_deterministic():
     net = make_net()
     runs = [
-        drive_checked_pair([NeuralAgent(net=net), RandomAgent(seed=5)], seed=3)
+        drive_checked_agents([NeuralAgent(net=net), RandomAgent(seed=5)], seed=3)
         for _ in range(2)
     ]
     assert runs[0][1] == runs[1][1]
@@ -82,7 +64,7 @@ def test_temperature_zero_is_deterministic():
 def test_sampling_same_seed_is_deterministic():
     net = make_net()
     runs = [
-        drive_checked_pair(
+        drive_checked_agents(
             [NeuralAgent(net=net, seed=11, temperature=1.0), RandomAgent(seed=5)],
             seed=3,
         )
@@ -136,6 +118,15 @@ def test_fresh_game_declaration_is_legal():
     assert agent.declare(game) in game.declare_options()
 
 
+def test_agent_puts_net_in_eval_mode():
+    # Behaviorally moot for the current Linear+ReLU net, but the contract
+    # matters if the architecture ever gains dropout/batchnorm.
+    net = make_net()
+    assert net.training  # nn.Module default
+    assert not NeuralAgent(net=net).net.training
+    assert not net.training  # the passed-in instance itself was switched
+
+
 # ---------------------------------------------------------------------- CLI
 
 
@@ -153,6 +144,16 @@ def test_evaluate_neural_vs_random_match(tmp_path, capsys):
     assert "neural vs random" in out
 
 
+def test_evaluate_neural_temperature_flag(tmp_path, capsys):
+    # --temperature reaches the sampling path (per-game seeds keep it
+    # deterministic, so this stays a stable smoke test).
+    path = save_random_ckpt(tmp_path)
+    evaluate.main(["neural", "random", "-n", "2", "--win-lead", "100",
+                   "--ckpt", str(path), "--temperature", "1.0"])
+    out = capsys.readouterr().out
+    assert "neural vs random" in out
+
+
 def test_play_neural_requires_ckpt(capsys):
     with pytest.raises(SystemExit):
         play.main(["--ai", "neural"])
@@ -163,7 +164,7 @@ def test_play_neural_quits_cleanly_on_q(tmp_path):
     path = save_random_ckpt(tmp_path)
     proc = subprocess.run(
         [sys.executable, "play.py", "--ai", "neural", "--ckpt", str(path),
-         "--seed", "0", "--ai-seed", "0"],
+         "--seed", "0", "--ai-seed", "0", "--temperature", "1.0"],
         input="q\n", capture_output=True, text=True, timeout=120,
         cwd=REPO_ROOT,
     )

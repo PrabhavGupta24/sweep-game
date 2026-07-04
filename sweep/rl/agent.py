@@ -25,10 +25,11 @@ from .ppo import load_checkpoint
 class NeuralAgent(Agent):
     """Plays with a PolicyValueNet; the value head is ignored.
 
-    The net comes from, in order of precedence: ``net`` (an instance, used
-    as-is), ``ckpt_path`` (restored via load_checkpoint), or — with neither —
-    a fresh randomly-initialized PolicyValueNet, which plays arbitrarily and
-    exists for testing only.
+    The net comes from, in order of precedence: ``net`` (an instance),
+    ``ckpt_path`` (restored via load_checkpoint), or — with neither — a
+    fresh randomly-initialized PolicyValueNet, which plays arbitrarily and
+    exists for testing only. Whichever it is, the agent puts it in eval
+    mode (a mutation visible to the caller of ``net=...``).
 
     ``temperature`` is passed to act_single: 0.0 (the default) is
     deterministic argmax; > 0 samples from softmax(logits / temperature)
@@ -43,6 +44,7 @@ class NeuralAgent(Agent):
             net = PolicyValueNet()
             if ckpt_path is not None:
                 load_checkpoint(ckpt_path, net)
+        net.eval()  # inference semantics even if the net gains dropout/batchnorm
         self.net = net
         self.temperature = temperature
         self.generator = torch.Generator()

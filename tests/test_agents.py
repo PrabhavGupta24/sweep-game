@@ -11,10 +11,10 @@ from test_rules import make_game
 AGENT_CLASSES = [RandomAgent, GreedyAgent, HeuristicAgent]
 
 
-def drive_checked(agent_cls, seed, win_lead=100):
-    """Play a full game, asserting every choice comes from the legal sets."""
+def drive_checked_agents(agents, seed, win_lead=100):
+    """Play a full game with two pre-built agents, asserting every choice
+    comes from the legal sets."""
     game = Game(seed=seed, win_lead=win_lead)
-    agents = [agent_cls(seed=seed + 1), agent_cls(seed=seed + 2)]
     trace = []
     while not game.game_over:
         if game.awaiting == "declare":
@@ -28,6 +28,12 @@ def drive_checked(agent_cls, seed, win_lead=100):
             trace.append(action)
             game.step(action)
     return game, trace
+
+
+def drive_checked(agent_cls, seed, win_lead=100):
+    """drive_checked_agents with two same-class agents built from `seed`."""
+    agents = [agent_cls(seed=seed + 1), agent_cls(seed=seed + 2)]
+    return drive_checked_agents(agents, seed, win_lead)
 
 
 @pytest.mark.parametrize("agent_cls", AGENT_CLASSES)
