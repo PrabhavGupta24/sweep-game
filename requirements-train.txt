@@ -1,0 +1,5 @@
+# Training extras (the base game needs only requirements.txt).
+# Intel macs cap at torch 2.2.2 — the last release with x86_64 macOS wheels —
+# and torch 2.2 needs numpy 1.x, so keep numpy pinned below 2.
+torch>=2.2
+numpy<2
