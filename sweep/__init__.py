@@ -5,13 +5,14 @@ the terminal UI (play.py) and any AI training code sit on top of this package.
 """
 
 from .cards import card_from, card_points, card_str, card_value
-from .engine import Action, ActionKind, Game, Pile
+from .engine import Action, ActionKind, Game, Pile, RoundResult
 
 __all__ = [
     "Action",
     "ActionKind",
     "Game",
     "Pile",
+    "RoundResult",
     "card_from",
     "card_points",
     "card_str",

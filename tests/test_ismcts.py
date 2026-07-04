@@ -39,6 +39,7 @@ def fingerprint(g):
     """Every public game field, as comparable immutable values."""
     return (
         g.win_lead, g.round_num, g.differential, tuple(g.round_history),
+        tuple(g.round_results),
         g.game_over, g.winner, g.first_player,
         None if g._facedown is None else tuple(g._facedown),
         tuple(g.hands[0]), tuple(g.hands[1]), tuple(g.deck), tuple(g.table),
