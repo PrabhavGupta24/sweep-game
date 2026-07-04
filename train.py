@@ -14,7 +14,10 @@ past selves, sampled by the "pool" opponent weight.
 Resume semantics (--resume PATH): the checkpoint stores the net, optimizer,
 round counter, update counter, the frozen pool, the collection rng state,
 and torch's global RNG state, all of which are restored, so a run split
-into chunks CONTINUES the single long run exactly. With --threads 1 (the
+into chunks CONTINUES the single long run exactly. Restoring the optimizer
+includes its learning rate, so a different --lr passed alongside --resume
+is ignored (a warning is printed) — there is no cross-chunk lr schedule.
+With --threads 1 (the
 default) and chunk boundaries that fall on update boundaries (each chunk's
 --rounds a multiple of --batch-rounds; note the final update of a run is
 truncated to the rounds remaining), the chunked run is bit-identical to the
@@ -26,6 +29,14 @@ metrics.csv if chunks change --opponents mid-run, and any run with
 and python's global RNGs are seeded at startup for hygiene but never
 consumed by the training loop, which draws only from the checkpointed
 streams.
+
+Crash recovery caveat: metrics.csv gains a row every update, but
+ckpt_latest.pt is only written on --save-every crossings and at the end. A
+run killed between the two leaves rows newer than the checkpoint; resuming
+replays those updates and appends rows repeating the same round counts.
+Documented chunked runs (chunk boundaries on update boundaries, ending
+normally) are unaffected; otherwise dedupe metrics.csv on the rounds
+column, keeping the last occurrence.
 """
 
 from __future__ import annotations
@@ -34,6 +45,7 @@ import argparse
 import csv
 import json
 import random
+import sys
 import time
 from pathlib import Path
 
@@ -68,7 +80,9 @@ def parse_args(argv=None):
                    help="total rounds to have collected when done")
     p.add_argument("--out", required=True, help="output dir, e.g. runs/NAME")
     p.add_argument("--seed", type=int, default=0)
-    p.add_argument("--lr", type=float, default=3e-4)
+    p.add_argument("--lr", type=float, default=3e-4,
+                   help="Adam learning rate (ignored with --resume: the "
+                        "checkpointed optimizer lr wins)")
     p.add_argument("--batch-rounds", type=int, default=64,
                    help="episodes collected per PPO update")
     p.add_argument("--save-every", type=int, default=5000,
@@ -80,7 +94,10 @@ def parse_args(argv=None):
     p.add_argument("--opponents", default="default",
                    help=f"preset {sorted(PRESETS)} or a JSON weights dict "
                         f"over {list(OPPONENT_KINDS)}")
-    p.add_argument("--temperature", type=float, default=1.0)
+    p.add_argument("--temperature", type=float, default=1.0,
+                   help="collection sampling temperature; ppo_update "
+                        "recomputes logprobs at 1.0, so any other value "
+                        "makes the collected data off-policy")
     p.add_argument("--resume", default=None, help="checkpoint to continue from")
     p.add_argument("--threads", type=int, default=1)
     args = p.parse_args(argv)
@@ -88,6 +105,13 @@ def parse_args(argv=None):
         args.opponents = resolve_opponents(args.opponents)
     except (KeyError, ValueError) as e:
         p.error(f"bad --opponents: {e}")
+    if args.temperature <= 0:
+        p.error("--temperature must be > 0: 0 is argmax with old_logprob "
+                "fixed at 0.0, which breaks the PPO ratio")
+    if args.temperature != 1.0:
+        print(f"warning: --temperature {args.temperature:g} collects "
+              f"logprobs that are off-policy for the temperature-1 "
+              f"ppo_update; use 1.0 for training", file=sys.stderr)
     return args
 
 
@@ -141,6 +165,10 @@ def main(argv=None):
 
     if args.resume:
         meta = load_checkpoint(args.resume, net, optimizer)
+        restored_lr = optimizer.param_groups[0]["lr"]
+        if restored_lr != args.lr:
+            print(f"warning: --resume restored optimizer lr {restored_lr:g}; "
+                  f"--lr {args.lr:g} is ignored", file=sys.stderr)
         rounds_done = meta["rounds_done"]
         update_idx = meta["update_idx"]
         pool_dicts = meta["pool"]

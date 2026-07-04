@@ -374,6 +374,32 @@ def test_train_resume_continues_bit_identically(tmp_path):
     assert rows_a == rows_b
 
 
+def test_parse_args_temperature_guards(capsys):
+    base = ["--rounds", "1", "--out", "x"]
+    train.parse_args(base)
+    assert capsys.readouterr().err == ""  # default 1.0: silent
+    train.parse_args(base + ["--temperature", "0.5"])
+    assert "off-policy" in capsys.readouterr().err
+    for bad in ("0", "-1"):
+        with pytest.raises(SystemExit):
+            train.parse_args(base + ["--temperature", bad])
+
+
+def test_resume_keeps_checkpointed_lr_and_warns(tmp_path, capsys):
+    out = tmp_path / "run"
+    common = ["--batch-rounds", "2", "--seed", "5", "--opponents", '{"self": 1.0}']
+    train.main(["--rounds", "2", "--out", str(out)] + common)
+    ckpt = str(out / "ckpt_latest.pt")
+    train.main(["--rounds", "4", "--out", str(out), "--resume", ckpt] + common)
+    assert capsys.readouterr().err == ""  # same lr: no warning
+    train.main(["--rounds", "6", "--out", str(out), "--resume", ckpt,
+                "--lr", "1e-5"] + common)
+    err = capsys.readouterr().err
+    assert "0.0003" in err and "1e-05 is ignored" in err
+    payload = torch.load(out / "ckpt_latest.pt", map_location="cpu")
+    assert payload["optimizer"]["param_groups"][0]["lr"] == pytest.approx(3e-4)
+
+
 def test_opponents_presets_and_json():
     assert train.resolve_opponents("default") == train.DEFAULT_OPPONENTS
     assert train.resolve_opponents('{"greedy": 1.0}') == {"greedy": 1.0}
