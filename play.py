@@ -36,11 +36,16 @@ def _neural_agent(seed=None, ckpt_path=None, temperature=0.0):
     return NeuralAgent(ckpt_path=ckpt_path, seed=seed, temperature=temperature)
 
 
-def _hybrid_agent(seed=None, ckpt_path=None):
-    """Factory for the hybrid opponent; torch loads only when it is chosen."""
+def _hybrid_agent(seed=None, ckpt_path=None, priors=False):
+    """Factory for the hybrid opponent; torch loads only when it is chosen.
+
+    TODO: default `priors` to whatever the EVALUATE phase measures as the
+    stronger setting once PUCT is benchmarked against the shipped value-head
+    ISMCTS; kept False here so play.py mirrors the current shipped default.
+    """
     from sweep.rl.hybrid import HybridAgent
 
-    return HybridAgent(ckpt_path=ckpt_path, seed=seed)
+    return HybridAgent(ckpt_path=ckpt_path, seed=seed, priors=priors)
 
 
 # Selectable opponents. Each factory takes a `seed` keyword.

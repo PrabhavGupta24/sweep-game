@@ -52,6 +52,12 @@ def main(argv=None):
     parser.add_argument("--temperature", type=float, default=0.0,
                         help="neural sampling temperature (default 0 = argmax; "
                              "per-game seeds only affect neural above 0)")
+    parser.add_argument("--priors", action="store_true",
+                        help="hybrid: guide search with the net's policy head "
+                             "(PUCT); off by default = plain value-head ISMCTS")
+    parser.add_argument("--c-puct", type=float, default=1.0,
+                        help="hybrid PUCT exploration constant (default 1.0; "
+                             "only used with --priors)")
     args = parser.parse_args(argv)
 
     names = list(dict.fromkeys(args.agents))  # dedupe, keep order
@@ -80,6 +86,8 @@ def main(argv=None):
             net = PolicyValueNet()
             load_checkpoint(args.ckpt, net)
             kw = {} if args.sims is None else {"n_sims": args.sims}
+            kw["priors"] = args.priors
+            kw["c_puct"] = args.c_puct
             return lambda s: HybridAgent(net=net, seed=s, **kw)
         cls = REGISTRY[name]
         if name == "ismcts" and args.sims is not None:
