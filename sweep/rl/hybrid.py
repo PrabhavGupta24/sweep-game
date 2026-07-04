@@ -3,9 +3,10 @@
 Stage 5 productionizes a proven prototype: the plain ISMCTSAgent scores a
 freshly-expanded leaf by playing the round out with a greedy rollout, then
 reading the exact swing. HybridAgent instead evaluates a still-live leaf with
-the PolicyValueNet's value head — a learned estimate of the round's remaining
-swing — and only falls back to the exact swing when the leaf is already the
-round's end. Everything else (per-iteration determinize, availability-UCT,
+the PolicyValueNet's value head — a learned estimate of the round's full final
+swing conditioned on the leaf state (the critic's training target; see
+_leaf_reward) — and only falls back to the exact swing when the leaf is already
+the round's end. Everything else (per-iteration determinize, availability-UCT,
 negamax backprop, visit-count move choice) is inherited unchanged from
 ISMCTSAgent. PUCT / policy priors are explicitly out of scope.
 
@@ -17,11 +18,12 @@ inherited search from the searching player's own ``unseen``.
 
 from __future__ import annotations
 
+import numpy as np
 import torch
 
 from ..ismcts import ISMCTSAgent, _exact_reward
 from .agent import declare_through_net, resolve_net
-from .encoders import encode_observation
+from .encoders import OBS_SIZE, encode_observation
 
 
 class HybridAgent(ISMCTSAgent):
@@ -48,6 +50,11 @@ class HybridAgent(ISMCTSAgent):
             self.generator.seed()
         else:
             self.generator.manual_seed(seed)
+        # Reused encoding buffer for the leaf value head (mirrors
+        # NeuralAgent._obs): encode_observation zeroes and refills it each
+        # call, so results are identical to a fresh allocation while avoiding a
+        # 253-float alloc per expanded leaf on the search hot path.
+        self._obs = np.zeros(OBS_SIZE, dtype=np.float32)
 
     def _leaf_reward(self, det, root, hist, rng):
         """Value-head estimate of a live leaf, from ``root``'s perspective.
@@ -60,7 +67,7 @@ class HybridAgent(ISMCTSAgent):
         ``rng`` is accepted for the hook signature but unused: no rollout runs.
         """
         if len(det.round_history) == hist and not det.game_over:
-            obs = encode_observation(det.view(det.turn), "play")
+            obs = encode_observation(det.view(det.turn), "play", np_out=self._obs)
             value = self.net.value_only(obs)
             return value if det.turn == root else -value
         return _exact_reward(det, root, hist)
