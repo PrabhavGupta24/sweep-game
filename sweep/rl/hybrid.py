@@ -32,9 +32,18 @@ class HybridAgent(ISMCTSAgent):
     The net comes from, in order of precedence: ``net``, ``ckpt_path``, or a
     fresh random-init PolicyValueNet (see resolve_net) — the last plays
     arbitrarily and exists for testing only. ``seed``, ``n_sims`` and ``c`` are
-    the ISMCTSAgent knobs; the same ``c=0.35`` default holds because leaf
-    rewards keep the same ~[-1, 1] scale as the exact swing.
+    the ISMCTSAgent knobs; the same ``c=0.35`` default holds — see the
+    exploration-constant note below, which confirms it transfers to the value
+    head.
     """
+
+    # Exploration-constant check (Stage 5): the value head's leaf rewards have
+    # different variance than the rollout swings c was tuned on, so c=0.35 was
+    # re-measured against it. On PAIRED deals (base_seed 5000, 10 games each,
+    # 200 sims vs HeuristicAgent) c=0.35 went 10/10 at +244.0/game while c=0.7
+    # went 5/10 at -21.4/game — a decisive gap in the same direction Stage 3
+    # found for plain rollouts. The Stage 3 tuning transfers; c=0.35 stays the
+    # default. (Same-scale ~[-1, 1] rewards, so a smaller c exploits more.)
 
     name = "hybrid"
 
