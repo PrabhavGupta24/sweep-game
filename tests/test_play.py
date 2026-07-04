@@ -14,13 +14,15 @@ def test_registry_maps_names_to_agents():
         "heuristic": HeuristicAgent,
         "ismcts": ISMCTSAgent,
     }
-    assert set(play.AI_AGENTS) == set(scripted) | {"neural"}
+    assert set(play.AI_AGENTS) == set(scripted) | {"neural", "hybrid"}
     for name, cls in scripted.items():
         assert play.AI_AGENTS[name] is cls
         assert cls(seed=1).name == name  # the agent knows its own name
-    # The neural entry is a lazy factory (torch loads only when chosen);
-    # without a checkpoint it builds a random-init agent that knows its name.
+    # The neural and hybrid entries are lazy factories (torch loads only when
+    # chosen); without a checkpoint each builds a random-init agent that knows
+    # its name.
     assert play.AI_AGENTS["neural"](seed=1).name == "neural"
+    assert play.AI_AGENTS["hybrid"](seed=1).name == "hybrid"
 
 
 def _capture_agent(monkeypatch):

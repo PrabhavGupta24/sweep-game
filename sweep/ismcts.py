@@ -75,6 +75,17 @@ def _rollout_action(game, rng):
     return rng.choice(actions)  # forced to build/raise
 
 
+def _exact_reward(det, root, hist):
+    """The finished round's score swing from ``root``'s perspective.
+
+    ``hist`` is len(round_history) at the search root, so round_history[hist]
+    is the round the search explores; requires that round to have finished
+    (the search never crosses a round boundary). Rewards live in ~[-1, 1].
+    """
+    scores = det.round_history[hist]
+    return (scores[root] - scores[1 - root]) / 100.0
+
+
 class _Node:
     __slots__ = ("children",)
 
@@ -114,6 +125,22 @@ class ISMCTSAgent(Agent):
         counts = Counter(card_value(c) for c in view["hand"])
         return max(game.declare_options(), key=lambda v: (counts[v], v))
 
+    def _leaf_reward(self, det, root, hist, rng):
+        """Evaluate a freshly-expanded leaf, from ``root``'s perspective.
+
+        Base (plain-ISMCTS) policy: greedily play the round out with
+        ``_rollout_action`` (drawing from ``rng`` on forced build/raise, the
+        same stream the caller passed) and return the exact finished-round
+        swing. Subclasses (HybridAgent) may return a learned estimate of a
+        still-live round instead; ``rng`` MUST be consumed in the same order
+        the caller expects so a subclass swap never perturbs a sibling
+        agent's stream. ``det`` is the determinization just stepped into the
+        leaf; ``det`` may already be terminal, in which case no rollout runs.
+        """
+        while len(det.round_history) == hist and not det.game_over:
+            det.step(_rollout_action(det, rng))
+        return _exact_reward(det, root, hist)
+
     def act(self, game):
         actions = game.legal_actions()
         if len(actions) == 1:
@@ -126,6 +153,7 @@ class ISMCTSAgent(Agent):
             det = determinize(game, root, it_rng)
             path = []
             node = tree
+            reward = None  # set at the leaf: expansion hook, else exact swing
             while len(det.round_history) == hist and not det.game_over:
                 legal = det.legal_actions()
                 children = node.children
@@ -139,16 +167,21 @@ class ISMCTSAgent(Agent):
                     child = children[action] = _Child()
                     det.step(action)
                     path.append((child, mover))
-                    while len(det.round_history) == hist and not det.game_over:
-                        det.step(_rollout_action(det, it_rng))
+                    # Leaf hook: base impl rolls out to the round's end and
+                    # returns the exact swing; a subclass may evaluate the
+                    # (possibly still-live) leaf instead. It draws from it_rng
+                    # in the base impl, so the plain agent's stream is intact.
+                    reward = self._leaf_reward(det, root, hist, it_rng)
                     break
                 action = max(existing, key=lambda a: self._uct(children[a]))
                 child = children[action]
                 det.step(action)
                 path.append((child, mover))
                 node = child.node
-            scores = det.round_history[hist]
-            reward = (scores[root] - scores[1 - root]) / 100.0
+            if reward is None:
+                # The walk selected its way into a terminal (round finished)
+                # without expanding a new leaf: score it exactly.
+                reward = _exact_reward(det, root, hist)
             for child, mover in path:
                 child.n += 1
                 child.w += reward if mover == root else -reward

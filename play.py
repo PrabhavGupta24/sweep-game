@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
 """Play Sweep in the terminal against an AI.
 
-    python3 play.py [--ai {random,greedy,heuristic,ismcts,neural}] [--ckpt PATH]
-                    [--seed N] [--win-lead N] [--ai-seed N] [--temperature T]
+    python3 play.py [--ai {random,greedy,heuristic,ismcts,neural,hybrid}]
+                    [--ckpt PATH] [--seed N] [--win-lead N] [--ai-seed N]
+                    [--temperature T]
 
 The neural opponent plays a trained checkpoint: `--ai neural --ckpt runs/best.pt`.
+The hybrid opponent is ISMCTS guided by that checkpoint's value head and also
+needs `--ckpt`: `--ai hybrid --ckpt runs/best.pt`.
 
 The human is always player 0; who plays first each round is decided by the
 rules (random in round 1, then the cumulative leader). FAIRNESS: everything
@@ -33,6 +36,13 @@ def _neural_agent(seed=None, ckpt_path=None, temperature=0.0):
     return NeuralAgent(ckpt_path=ckpt_path, seed=seed, temperature=temperature)
 
 
+def _hybrid_agent(seed=None, ckpt_path=None):
+    """Factory for the hybrid opponent; torch loads only when it is chosen."""
+    from sweep.rl.hybrid import HybridAgent
+
+    return HybridAgent(ckpt_path=ckpt_path, seed=seed)
+
+
 # Selectable opponents. Each factory takes a `seed` keyword.
 AI_AGENTS = {
     "random": RandomAgent,
@@ -40,6 +50,7 @@ AI_AGENTS = {
     "heuristic": HeuristicAgent,
     "ismcts": ISMCTSAgent,
     "neural": _neural_agent,  # also needs ckpt_path; see main()
+    "hybrid": _hybrid_agent,  # also needs ckpt_path; see main()
 }
 
 
@@ -173,7 +184,8 @@ def main(argv=None) -> int:
                         help="seed for the AI's choices (the neural opponent "
                              "ignores it at temperature 0)")
     parser.add_argument("--ckpt", default=None,
-                        help="checkpoint path for the neural opponent (required with it)")
+                        help="checkpoint path for the neural/hybrid opponent "
+                             "(required with either)")
     parser.add_argument("--temperature", type=float, default=0.0,
                         help="neural sampling temperature (default 0 = argmax)")
     args = parser.parse_args(argv)
@@ -184,6 +196,10 @@ def main(argv=None) -> int:
             parser.error("--ai neural requires --ckpt PATH")
         kwargs["ckpt_path"] = args.ckpt
         kwargs["temperature"] = args.temperature
+    elif args.ai == "hybrid":
+        if args.ckpt is None:
+            parser.error("--ai hybrid requires --ckpt PATH")
+        kwargs["ckpt_path"] = args.ckpt
 
     console = Console()
     game = Game(seed=args.seed, win_lead=args.win_lead)

@@ -161,8 +161,50 @@ improving when the 250k budget ran out (mean reward vs heuristic went from
 close the remaining gap. Note the non-transitivity: search troubles the net
 more than it troubles the heuristic (neural only edges ismcts-200 and ties
 ismcts-600 on a small sample, while the heuristic crushes both) — the net and
-the search agent have complementary strengths, which is the motivation for a
-future net-guided-search hybrid.
+the search agent have complementary strengths, which is the motivation for the
+net-guided-search hybrid below.
+
+### Hybrid agent (value-guided search)
+
+`hybrid` (`sweep/rl/hybrid.py`) is the ISMCTS search agent with its greedy
+rollout replaced by the trained value head: the same per-iteration
+determinization and availability-UCT tree, but each freshly-expanded leaf is
+scored by the net's learned estimate of the round's final swing instead of
+being played out to the end (the exact swing is still used when the leaf is
+already terminal). This fuses the net's positional judgment with the search's
+lookahead — the complementary strengths the Neural section noted — and it needs
+the same `--ckpt`, with `--sims` setting its per-decision budget. PUCT / policy
+priors are left as future work; only the value head guides the search here.
+
+```
+python3 evaluate.py hybrid heuristic --ckpt models/neural-250k.pt -n 40 --sims 200
+python3 play.py --ai hybrid --ckpt models/neural-250k.pt
+```
+
+Gauntlet results for `models/neural-250k.pt` (c=0.35, seat-swapped, win lead
+200; each pairing chunked across seed offsets and aggregated):
+
+```
+pairing (A vs B)         games A wins B wins  win% A           95% CI diff/g (A)
+--------------------------------------------------------------------------------
+hybrid-200 vs neural        10      9      1   90.0% [ 59.6%, 98.2%]     +214.4
+hybrid-200 vs ismcts-200     6      6      0  100.0% [ 61.0%,100.0%]     +246.3
+hybrid-200 vs heuristic     40     37      3   92.5% [ 80.1%, 97.4%]     +200.0
+hybrid-50  vs heuristic     10      8      2   80.0% [ 49.0%, 94.3%]     +156.0
+```
+
+The heuristic had reigned unbeaten over every prior agent — random, greedy,
+plain ismcts-200 (it crushed them all) and even the neural net, which was the
+first to take games off it but still lost the match 43/100. The hybrid inverts
+that: it beats the heuristic 37/3 at +200/game, and it beats both of its own
+parents decisively (neural 9/1, ismcts-200 6/0), which is the complementary-
+strengths story made concrete — the value head supplies the positional read the
+determinized rollouts were too noisy for, while the search supplies the
+lookahead the net lacks. The crown is budget-sensitive but not fragile: at a
+quarter of the budget (hybrid-50) it still wins 8/10 at +156/game. On paired
+deals the exploration constant transfers cleanly from Stage 3 — c=0.35 went
+10/10 (+244/game) where c=0.7 went 5/10 (-21.4/game), so c=0.35 stays the
+default (see the note in `sweep/rl/hybrid.py`).
 
 ## Development
 
@@ -173,7 +215,8 @@ python3 -m pytest tests/ -q
 - `sweep/engine.py` — headless rules engine (`Game`, `Action`, `Pile`).
 - `sweep/agents.py` — the `Agent` protocol and the baseline agents.
 - `sweep/ismcts.py` — the ISMCTS search agent.
-- `sweep/rl/` — RL stack: encoders, env, model, PPO, `NeuralAgent`.
+- `sweep/rl/` — RL stack: encoders, env, model, PPO, `NeuralAgent`,
+  `HybridAgent` (value-guided ISMCTS).
 - `sweep/arena.py` — match/round-robin evaluation harness.
 - `sweep/ui.py` — rich-based rendering and interaction helpers.
 - `play.py` — interactive entry point (human vs. AI).
