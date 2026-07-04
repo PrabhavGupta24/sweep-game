@@ -36,12 +36,14 @@ def _neural_agent(seed=None, ckpt_path=None, temperature=0.0):
     return NeuralAgent(ckpt_path=ckpt_path, seed=seed, temperature=temperature)
 
 
-def _hybrid_agent(seed=None, ckpt_path=None, priors=False):
+def _hybrid_agent(seed=None, ckpt_path=None, priors=True):
     """Factory for the hybrid opponent; torch loads only when it is chosen.
 
-    TODO: default `priors` to whatever the EVALUATE phase measures as the
-    stronger setting once PUCT is benchmarked against the shipped value-head
-    ISMCTS; kept False here so play.py mirrors the current shipped default.
+    `priors=True` (PUCT) is the shipped default: the EVALUATE phase measured it
+    stronger than the plain value-head ISMCTS — it beats it head-to-head 8/10
+    (+184/game, n=10 paired) while more than doubling search depth, and it
+    matches it vs the heuristic (18/20, +192/game at 200 sims; 8/10, +158 at 50).
+    Pass priors=False for the previous value-head-only mode.
     """
     from sweep.rl.hybrid import HybridAgent
 
@@ -193,6 +195,11 @@ def main(argv=None) -> int:
                              "(required with either)")
     parser.add_argument("--temperature", type=float, default=0.0,
                         help="neural sampling temperature (default 0 = argmax)")
+    parser.add_argument("--priors", action=argparse.BooleanOptionalAction,
+                        default=True,
+                        help="hybrid: guide search with the net's policy head "
+                             "(PUCT); on by default (measured stronger). "
+                             "Use --no-priors for the value-head-only mode.")
     args = parser.parse_args(argv)
 
     kwargs = {"seed": args.ai_seed}
@@ -205,6 +212,7 @@ def main(argv=None) -> int:
         if args.ckpt is None:
             parser.error("--ai hybrid requires --ckpt PATH")
         kwargs["ckpt_path"] = args.ckpt
+        kwargs["priors"] = args.priors
 
     console = Console()
     game = Game(seed=args.seed, win_lead=args.win_lead)

@@ -173,8 +173,7 @@ scored by the net's learned estimate of the round's final swing instead of
 being played out to the end (the exact swing is still used when the leaf is
 already terminal). This fuses the net's positional judgment with the search's
 lookahead — the complementary strengths the Neural section noted — and it needs
-the same `--ckpt`, with `--sims` setting its per-decision budget. PUCT / policy
-priors are left as future work; only the value head guides the search here.
+the same `--ckpt`, with `--sims` setting its per-decision budget.
 
 ```
 python3 evaluate.py hybrid heuristic --ckpt models/neural-250k.pt -n 40 --sims 200
@@ -204,7 +203,53 @@ lookahead the net lacks. The crown is budget-sensitive but not fragile: at a
 quarter of the budget (hybrid-50) it still wins 8/10 at +156/game. On paired
 deals the exploration constant transfers cleanly from Stage 3 — c=0.35 went
 10/10 (+244/game) where c=0.7 went 5/10 (-21.4/game), so c=0.35 stays the
-default (see the note in `sweep/rl/hybrid.py`).
+default for the value-head UCT path (see the note in `sweep/rl/hybrid.py`).
+
+#### Policy priors (PUCT)
+
+The *same* trained net has a policy head that the value-head search above never
+used. PUCT (`--priors`, on by default; `--no-priors` selects the old value-head-
+only mode) wires it into selection AlphaZero-style, adapted to determinized
+ISMCTS: selection maximizes `Q(a) + c_puct·P(a)·sqrt(A(a))/(1+N(a))` and
+selecting an unvisited action *is* the expansion, so there is no
+expand-every-untried-child-first step. The point is depth. Plain value-head UCT
+must expand every ~20 legal moves before it can deepen, so at 200 sims its trees
+were only 2–4 plies deep; priors let the budget commit to plausible branches.
+Measured over ~20 real decisions/decision-batch at 200 sims (`c_puct=1.0`):
+
+```
+                       max selection depth   visit-weighted mean depth
+value-head UCT (off)          7–8                    2.6
+PUCT priors (on)             19–20                   5.7
+```
+
+`c_puct` was tuned on paired deals (base_seed 5000, n=10 each, 200 sims vs
+heuristic): `1.0` won 9/10 at +188/game, `2.0` 9/10 at +151, `0.5` 8/10 at +174.
+`c_puct=1.0` tops both wins and margin, so it is the default. Results for
+`models/neural-250k.pt` (seat-swapped paired seeds, chunked and aggregated):
+
+```
+pairing (A vs B)             games A wins B wins  win% A           95% CI diff/g (A)
+-----------------------------------------------------------------------------------
+puct-200  vs valueleaf-200      10      8      2   80.0% [ 49.0%, 94.3%]     +184.2
+puct-200  vs heuristic          20     18      2   90.0% [ 69.9%, 97.2%]     +192.4
+puct-50   vs heuristic          10      8      2   80.0% [ 49.0%, 94.3%]     +158.2
+```
+
+Honest read: the decisive test is the direct head-to-head, and PUCT beats the
+plain value-head ISMCTS 8/10 at +184/game while roughly doubling search depth —
+so `--ai hybrid` now ships PUCT by default. Against the (already-crushed)
+heuristic the two modes are statistically indistinguishable (18/20 +192 vs the
+value-leaf baseline's 37/3 +200 at n=40; 8/10 +158 vs 8/10 +156 at 50 sims) —
+both saturate near the ceiling, so the depth gain shows up as a head-to-head edge
+rather than a bigger heuristic margin. Cost: the extra policy-head evaluation per
+node makes each PUCT move ~250 ms at 200 sims (vs ~240 ms for value-head-only)
+and ~50 ms at 50 sims — a negligible overhead for a decisive depth increase. The
+samples are small (n≤20, CPU-contended) and the heuristic comparisons overlap,
+so the depth doubling and the head-to-head win are the load-bearing evidence, not
+the point margins. Note both-sides-searching matches draw games out toward the
+win-lead (21–27 rounds/game vs ~5 vs the heuristic), which is why the
+head-to-head is capped at n=10.
 
 ## Development
 

@@ -52,9 +52,11 @@ def main(argv=None):
     parser.add_argument("--temperature", type=float, default=0.0,
                         help="neural sampling temperature (default 0 = argmax; "
                              "per-game seeds only affect neural above 0)")
-    parser.add_argument("--priors", action="store_true",
+    parser.add_argument("--priors", action=argparse.BooleanOptionalAction,
+                        default=True,
                         help="hybrid: guide search with the net's policy head "
-                             "(PUCT); off by default = plain value-head ISMCTS")
+                             "(PUCT); on by default (measured stronger). "
+                             "Use --no-priors for plain value-head ISMCTS")
     parser.add_argument("--c-puct", type=float, default=1.0,
                         help="hybrid PUCT exploration constant (default 1.0; "
                              "only used with --priors)")

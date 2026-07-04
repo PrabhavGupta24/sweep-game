@@ -382,18 +382,20 @@ def test_puct_single_legal_action_shortcircuits():
 
 
 def test_evaluate_priors_flag_defaults_and_parse():
-    """--priors is a store_true (default False) and --c-puct parses as float."""
-    # Smoke the argparse plumbing without running games: build the parser via
-    # main() on a random-net path is expensive, so just confirm the flags exist
-    # by running the tiny committed-ckpt eval below; here assert defaults.
+    """--priors defaults ON (PUCT is the measured-stronger shipped mode),
+    --no-priors turns it off, and --c-puct parses as float."""
     import argparse
 
-    # Reconstruct the same flags evaluate.main declares.
+    # Reconstruct the same flags evaluate.main declares (BooleanOptionalAction
+    # so --priors / --no-priors both exist; default True).
     p = argparse.ArgumentParser()
-    p.add_argument("--priors", action="store_true")
+    p.add_argument("--priors", action=argparse.BooleanOptionalAction,
+                   default=True)
     p.add_argument("--c-puct", type=float, default=1.0)
     ns = p.parse_args([])
-    assert ns.priors is False and ns.c_puct == 1.0
+    assert ns.priors is True and ns.c_puct == 1.0
+    ns = p.parse_args(["--no-priors"])
+    assert ns.priors is False
     ns = p.parse_args(["--priors", "--c-puct", "0.5"])
     assert ns.priors is True and ns.c_puct == 0.5
 
@@ -406,9 +408,10 @@ def test_evaluate_hybrid_priors_vs_random_match(capsys):
     assert "hybrid vs random" in out
 
 
-def test_play_hybrid_factory_accepts_priors():
-    """play.py's hybrid factory takes priors (default False, per the TODO)."""
+def test_play_hybrid_factory_defaults_to_priors():
+    """play.py's hybrid factory ships priors=True (the measured-stronger PUCT
+    mode) and still lets a caller pick the value-head-only mode explicitly."""
     agent = play.AI_AGENTS["hybrid"](seed=1)
+    assert agent.priors is True  # PUCT is the shipped default
+    agent = play.AI_AGENTS["hybrid"](seed=1, priors=False)
     assert agent.priors is False
-    agent = play.AI_AGENTS["hybrid"](seed=1, priors=True)
-    assert agent.priors is True

@@ -107,6 +107,19 @@ class HybridAgent(ISMCTSAgent):
     # went 5/10 at -21.4/game — a decisive gap in the same direction Stage 3
     # found for plain rollouts. The Stage 3 tuning transfers; c=0.35 stays the
     # default. (Same-scale ~[-1, 1] rewards, so a smaller c exploits more.)
+    # NOTE: c=0.35 governs the priors=False value-head UCT path only. The PUCT
+    # path (priors=True) uses c_puct on a differently-scaled selection term
+    # (Q + c_puct*P*sqrt(A)/(1+N)), so c_puct was tuned separately — see below.
+
+    # PUCT exploration-constant tuning (Stage 5, priors=True): c_puct in
+    # {0.5, 1.0, 2.0} on PAIRED deals (base_seed 5000, 10 games each, 200 sims
+    # vs HeuristicAgent). c=1.0 won 9/10 at +188.4/game, c=2.0 won 9/10 at
+    # +151.2/game, c=0.5 won 8/10 at +174.2/game. c_puct=1.0 tops both wins and
+    # diff/game (the tie-breaker over the two 9/10 results), so it stays the
+    # default. Small samples; the win-rate ordering is not monotone, but 1.0
+    # dominates on point margin. (Trees deepen sharply under priors: at 200 sims
+    # the visit-weighted mean selection depth went 2.6 -> 5.7 plies, max 7 ->
+    # 19, vs the priors=False value-head UCT tree — the point of the priors.)
 
     name = "hybrid"
 
