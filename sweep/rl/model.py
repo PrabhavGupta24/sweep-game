@@ -61,6 +61,18 @@ class PolicyValueNet(nn.Module):
         return logits, values
 
     @torch.no_grad()
+    def value_only(self, obs_np):
+        """The value head on one observation, no candidates -> a Python float.
+
+        Runs the trunk + value head only (no action head / scorer), matching
+        forward()'s ``values`` output for the same obs. Used by HybridAgent to
+        score a live leaf position; returns a plain float scalar.
+        """
+        obs = torch.as_tensor(obs_np).unsqueeze(0)
+        obs_emb = self.trunk(obs)
+        return float(self.value_head(obs_emb).squeeze(-1)[0])
+
+    @torch.no_grad()
     def act_single(self, obs_np, cands_np, generator, temperature=1.0):
         """Pick a candidate for one decision -> (index, logprob, value).
 

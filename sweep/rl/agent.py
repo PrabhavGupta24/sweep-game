@@ -22,6 +22,41 @@ from .model import PolicyValueNet
 from .ppo import load_checkpoint
 
 
+def resolve_net(net=None, ckpt_path=None):
+    """The net for an agent, by precedence net > ckpt_path > random-init.
+
+    Mirrors the NeuralAgent contract exactly and is shared with HybridAgent:
+    with ``net`` given it is used as-is; else a fresh PolicyValueNet is built
+    and, when ``ckpt_path`` is set, restored from it; a random-init net (no
+    ckpt) plays arbitrarily and exists for testing only. The chosen net is put
+    in eval mode — a mutation visible to the caller of ``net=...`` — so
+    inference semantics hold even if the architecture gains dropout/batchnorm.
+    """
+    if net is None:
+        net = PolicyValueNet()
+        if ckpt_path is not None:
+            load_checkpoint(ckpt_path, net)
+    net.eval()
+    return net
+
+
+def declare_through_net(net, game, generator, temperature=0.0):
+    """Pick a declaration value by scoring (DECLARE, v) pseudo-actions.
+
+    Encodes the acting player's view and every declare option, scores them
+    through the net, and returns the chosen value. Shared by NeuralAgent and
+    HybridAgent so both declare identically for a given net.
+    """
+    view = game.view(game.turn)  # turn == first_player while declaring
+    obs = encode_observation(view, game.awaiting)
+    options = game.declare_options()
+    cands = np.zeros((len(options), ACTION_SIZE), dtype=np.float32)
+    for i, v in enumerate(options):
+        encode_action((DECLARE, v), view, np_out=cands[i])
+    index, _, _ = net.act_single(obs, cands, generator, temperature)
+    return options[index]
+
+
 class NeuralAgent(Agent):
     """Plays with a PolicyValueNet; the value head is ignored.
 
@@ -40,12 +75,7 @@ class NeuralAgent(Agent):
     name = "neural"
 
     def __init__(self, ckpt_path=None, net=None, seed=None, temperature=0.0):
-        if net is None:
-            net = PolicyValueNet()
-            if ckpt_path is not None:
-                load_checkpoint(ckpt_path, net)
-        net.eval()  # inference semantics even if the net gains dropout/batchnorm
-        self.net = net
+        self.net = resolve_net(net, ckpt_path)
         self.temperature = temperature
         self.generator = torch.Generator()
         if seed is None:
@@ -57,8 +87,7 @@ class NeuralAgent(Agent):
         self._cands = np.zeros((16, ACTION_SIZE), dtype=np.float32)
 
     def declare(self, game):
-        candidates = [(DECLARE, v) for v in game.declare_options()]
-        return self._choose(game, candidates)[1]
+        return declare_through_net(self.net, game, self.generator, self.temperature)
 
     def act(self, game):
         return self._choose(game, game.legal_actions())

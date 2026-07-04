@@ -12,6 +12,9 @@ pass e.g. `--sims 50` for quicker, weaker evaluations.
 
 `neural` plays a trained policy network and requires `--ckpt PATH` (a
 checkpoint written by train.py / sweep.rl.ppo.save_checkpoint).
+
+`hybrid` is ISMCTS with that trained value head replacing the greedy rollout;
+it also requires `--ckpt PATH`, and `--sims` sets its per-decision budget.
 """
 
 import argparse
@@ -26,6 +29,7 @@ REGISTRY = {
     "heuristic": HeuristicAgent,
     "ismcts": ISMCTSAgent,
     "neural": None,  # built lazily in main() so torch loads only when used
+    "hybrid": None,  # built lazily in main() so torch loads only when used
 }
 
 
@@ -40,9 +44,11 @@ def main(argv=None):
                         help="cumulative lead that ends a game (default 200)")
     parser.add_argument("--seed", type=int, default=0, help="base seed (default 0)")
     parser.add_argument("--sims", type=int, default=None,
-                        help="ismcts simulations per decision (default: agent default)")
+                        help="ismcts/hybrid simulations per decision "
+                             "(default: agent default)")
     parser.add_argument("--ckpt", default=None,
-                        help="checkpoint path for the neural agent (required with it)")
+                        help="checkpoint path for the neural/hybrid agent "
+                             "(required with either)")
     parser.add_argument("--temperature", type=float, default=0.0,
                         help="neural sampling temperature (default 0 = argmax; "
                              "per-game seeds only affect neural above 0)")
@@ -53,6 +59,8 @@ def main(argv=None):
         parser.error("need at least two distinct agents")
     if "neural" in names and args.ckpt is None:
         parser.error("the neural agent requires --ckpt PATH")
+    if "hybrid" in names and args.ckpt is None:
+        parser.error("the hybrid agent requires --ckpt PATH")
 
     def factory(name):
         if name == "neural":
@@ -64,6 +72,15 @@ def main(argv=None):
             load_checkpoint(args.ckpt, net)
             return lambda s: NeuralAgent(net=net, seed=s,
                                          temperature=args.temperature)
+        if name == "hybrid":
+            # Lazy (pulls in torch); load the checkpoint once, not per game.
+            from sweep.rl.hybrid import HybridAgent
+            from sweep.rl.model import PolicyValueNet
+            from sweep.rl.ppo import load_checkpoint
+            net = PolicyValueNet()
+            load_checkpoint(args.ckpt, net)
+            kw = {} if args.sims is None else {"n_sims": args.sims}
+            return lambda s: HybridAgent(net=net, seed=s, **kw)
         cls = REGISTRY[name]
         if name == "ismcts" and args.sims is not None:
             return lambda s: cls(seed=s, n_sims=args.sims)

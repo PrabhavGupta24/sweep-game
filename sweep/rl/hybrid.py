@@ -1,0 +1,69 @@
+"""HybridAgent: ISMCTS with the trained value head replacing greedy rollouts.
+
+Stage 5 productionizes a proven prototype: the plain ISMCTSAgent scores a
+freshly-expanded leaf by playing the round out with a greedy rollout, then
+reading the exact swing. HybridAgent instead evaluates a still-live leaf with
+the PolicyValueNet's value head — a learned estimate of the round's remaining
+swing — and only falls back to the exact swing when the leaf is already the
+round's end. Everything else (per-iteration determinize, availability-UCT,
+negamax backprop, visit-count move choice) is inherited unchanged from
+ISMCTSAgent. PUCT / policy priors are explicitly out of scope.
+
+FAIRNESS: the value head reads only encode_observation(det.view(det.turn),
+"play"), a pure function of det's public view, so hidden information stays out
+of reach exactly as in NeuralAgent. The determinization itself is built by the
+inherited search from the searching player's own ``unseen``.
+"""
+
+from __future__ import annotations
+
+import torch
+
+from ..ismcts import ISMCTSAgent, _exact_reward
+from .agent import declare_through_net, resolve_net
+from .encoders import encode_observation
+
+
+class HybridAgent(ISMCTSAgent):
+    """ISMCTS whose leaf evaluation is the trained value head.
+
+    The net comes from, in order of precedence: ``net``, ``ckpt_path``, or a
+    fresh random-init PolicyValueNet (see resolve_net) — the last plays
+    arbitrarily and exists for testing only. ``seed``, ``n_sims`` and ``c`` are
+    the ISMCTSAgent knobs; the same ``c=0.35`` default holds because leaf
+    rewards keep the same ~[-1, 1] scale as the exact swing.
+    """
+
+    name = "hybrid"
+
+    def __init__(self, ckpt_path=None, net=None, seed=None, n_sims=200, c=0.35):
+        super().__init__(seed=seed, n_sims=n_sims, c=c)
+        self.net = resolve_net(net, ckpt_path)
+        # Declarations go through the net at temperature 0 (argmax), so this
+        # generator is never actually sampled from; it exists for act_single's
+        # signature. Seeding it keeps declares reproducible if temperature > 0
+        # is ever wired in.
+        self.generator = torch.Generator()
+        if seed is None:
+            self.generator.seed()
+        else:
+            self.generator.manual_seed(seed)
+
+    def _leaf_reward(self, det, root, hist, rng):
+        """Value-head estimate of a live leaf, from ``root``'s perspective.
+
+        The value head predicts the *mover's own* expected round swing (score
+        diff / 100) — its training target — so it is already from det.turn's
+        perspective and must be NEGATED when det.turn != root to express it
+        from root's. When the leaf is already the round's end there is nothing
+        to estimate: return the exact swing (also from root's perspective).
+        ``rng`` is accepted for the hook signature but unused: no rollout runs.
+        """
+        if len(det.round_history) == hist and not det.game_over:
+            obs = encode_observation(det.view(det.turn), "play")
+            value = self.net.value_only(obs)
+            return value if det.turn == root else -value
+        return _exact_reward(det, root, hist)
+
+    def declare(self, game):
+        return declare_through_net(self.net, game, self.generator)

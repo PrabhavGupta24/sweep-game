@@ -12,6 +12,7 @@ from .env import SweepEnv
 __all__ = [
     "ACTION_SIZE",
     "DECLARE",
+    "HybridAgent",
     "NeuralAgent",
     "OBS_SIZE",
     "SweepEnv",
@@ -25,4 +26,8 @@ def __getattr__(name):
         from .agent import NeuralAgent  # deferred: pulls in torch
 
         return NeuralAgent
+    if name == "HybridAgent":
+        from .hybrid import HybridAgent  # deferred: pulls in torch
+
+        return HybridAgent
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
