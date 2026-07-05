@@ -251,6 +251,33 @@ the point margins. Note both-sides-searching matches draw games out toward the
 win-lead (21–27 rounds/game vs ~5 vs the heuristic), which is why the
 head-to-head is capped at n=10.
 
+### Extended training: the 500k checkpoint
+
+Resuming the 250k run for another 250k rounds against a harder league
+(`--opponents hard`: 30% heuristic) produced `models/neural-500k.pt` — the
+recommended checkpoint. During the extension the per-round training deficit vs
+the heuristic shrank from -0.23 to -0.018; at evaluation (temperature 0,
+seat-swapped):
+
+```
+pairing (A vs B)                games A wins B wins  win% A           95% CI diff/g (A)
+---------------------------------------------------------------------------------------
+neural-500k vs heuristic          100     59     41   59.0% [ 49.2%, 68.1%]      +31.0
+neural-500k vs neural-250k         20     12      8   60.0% [ 38.7%, 78.1%]      +50.8
+hybrid500-200 vs heuristic         20     15      5   75.0% [ 53.1%, 88.8%]     +123.0
+hybrid500-200 vs hybrid250-200      6      5      1   83.3% [ 43.6%, 97.0%]     +151.7
+```
+
+The raw network alone — 0.4 ms/move, zero search — now beats the heuristic
+outright (59/100, +31/game; it lost 43/100 at 250k), and the training curve was
+still improving at cutoff. The 500k hybrid beats the 250k hybrid head-to-head
+5/1 (+152/game, 29-round grinds between near-equals), so the stronger value
+head carries through to the search agent; its vs-heuristic sample (15/5, +123)
+overlaps the 250k hybrid's (18/2, +192) at these sample sizes — that matchup is
+saturated and can no longer separate strong agents. `models/neural-250k.pt`
+remains committed so the tables above stay reproducible; new play/eval should
+prefer `models/neural-500k.pt`.
+
 ## Development
 
 ```sh
