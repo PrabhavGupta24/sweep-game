@@ -123,6 +123,47 @@ sweeps: greedy and random regularly throw onto an empty or near-empty table,
 and the heuristic converts those into +50 sweeps while rarely offering one
 back.
 
+### Neural agent (PPO self-play)
+
+`neural` (`sweep/rl/`) is a learned player: a per-action scoring network
+(observation trunk + action encoder + value head) trained with PPO over league
+self-play — mirror games plus frozen past checkpoints and the scripted
+random/greedy/heuristic opponents. One episode is one round; the only reward is
+the round score differential at round end. Train your own:
+
+```
+python3 -m pip install -r requirements-train.txt
+python3 train.py --rounds 250000 --out runs/main --seed 42
+python3 evaluate.py neural heuristic --ckpt runs/main/ckpt_latest.pt -n 100
+python3 play.py --ai neural --ckpt models/neural-250k.pt
+```
+
+A trained checkpoint is committed at `models/neural-250k.pt` (250k rounds,
+~5 hours on an Intel MacBook at ~13 rounds/sec). Gauntlet results for that
+checkpoint (temperature 0, seat-swapped, win lead 200):
+
+```
+pairing (A vs B)         games A wins B wins  win% A           95% CI diff/g (A) rnds/g
+----------------------------------------------------------------------------------------
+neural vs random            50     50      0  100.0% [ 92.9%,100.0%]     +302.0   2.00
+neural vs greedy            50     50      0  100.0% [ 92.9%,100.0%]     +315.7   2.18
+neural vs ismcts-50         10      8      2   80.0% [ 49.0%, 94.3%]     +158.4   6.80
+neural vs ismcts-200        20     12      8   60.0% [ 38.7%, 78.1%]      +54.6   6.60
+neural vs ismcts-600         6      3      3   50.0% [ 18.8%, 81.2%]      -30.7   5.83
+neural vs heuristic        100     43     57   43.0% [ 33.7%, 52.8%]      -40.1   8.58
+```
+
+The heuristic remains the strongest agent, but its margin over the best
+challenger collapsed from -237/game (ismcts-200) to -40/game: the neural agent
+is the first to take games off it at all (43/100). Training was still
+improving when the 250k budget ran out (mean reward vs heuristic went from
+-0.56 to -0.23 per round across the run's quarters), so more compute should
+close the remaining gap. Note the non-transitivity: search troubles the net
+more than it troubles the heuristic (neural only edges ismcts-200 and ties
+ismcts-600 on a small sample, while the heuristic crushes both) — the net and
+the search agent have complementary strengths, which is the motivation for a
+future net-guided-search hybrid.
+
 ## Development
 
 ```sh
@@ -131,7 +172,10 @@ python3 -m pytest tests/ -q
 
 - `sweep/engine.py` — headless rules engine (`Game`, `Action`, `Pile`).
 - `sweep/agents.py` — the `Agent` protocol and the baseline agents.
+- `sweep/ismcts.py` — the ISMCTS search agent.
+- `sweep/rl/` — RL stack: encoders, env, model, PPO, `NeuralAgent`.
 - `sweep/arena.py` — match/round-robin evaluation harness.
 - `sweep/ui.py` — rich-based rendering and interaction helpers.
 - `play.py` — interactive entry point (human vs. AI).
 - `evaluate.py` — agent round-robin CLI.
+- `train.py` — PPO self-play training CLI.

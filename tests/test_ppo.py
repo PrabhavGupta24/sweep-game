@@ -385,19 +385,30 @@ def test_parse_args_temperature_guards(capsys):
             train.parse_args(base + ["--temperature", bad])
 
 
-def test_resume_keeps_checkpointed_lr_and_warns(tmp_path, capsys):
+def test_resume_lr_semantics(tmp_path, capsys):
     out = tmp_path / "run"
     common = ["--batch-rounds", "2", "--seed", "5", "--opponents", '{"self": 1.0}']
     train.main(["--rounds", "2", "--out", str(out)] + common)
     ckpt = str(out / "ckpt_latest.pt")
+    # Unset --lr on resume: checkpointed lr kept, silently.
     train.main(["--rounds", "4", "--out", str(out), "--resume", ckpt] + common)
-    assert capsys.readouterr().err == ""  # same lr: no warning
+    assert capsys.readouterr().err == ""
+    payload = torch.load(out / "ckpt_latest.pt", map_location="cpu")
+    assert payload["optimizer"]["param_groups"][0]["lr"] == pytest.approx(3e-4)
+    # Explicit --lr on resume: overrides, with a note (manual lr schedule).
+    ckpt = str(out / "ckpt_latest.pt")
     train.main(["--rounds", "6", "--out", str(out), "--resume", ckpt,
                 "--lr", "1e-5"] + common)
     err = capsys.readouterr().err
-    assert "0.0003" in err and "1e-05 is ignored" in err
+    assert "overriding checkpointed lr" in err
     payload = torch.load(out / "ckpt_latest.pt", map_location="cpu")
-    assert payload["optimizer"]["param_groups"][0]["lr"] == pytest.approx(3e-4)
+    assert payload["optimizer"]["param_groups"][0]["lr"] == pytest.approx(1e-5)
+
+
+def test_hard_preset_targets_heuristic():
+    weights = train.resolve_opponents("hard")
+    assert weights["heuristic"] == pytest.approx(0.3)
+    assert sum(weights.values()) == pytest.approx(1.0)
 
 
 def test_opponents_presets_and_json():

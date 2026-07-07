@@ -9,6 +9,9 @@ played twice with seats swapped).
 
 `ismcts` at its default budget takes ~1s per decision (~1000x the baselines);
 pass e.g. `--sims 50` for quicker, weaker evaluations.
+
+`neural` plays a trained policy network and requires `--ckpt PATH` (a
+checkpoint written by train.py / sweep.rl.ppo.save_checkpoint).
 """
 
 import argparse
@@ -22,10 +25,11 @@ REGISTRY = {
     "greedy": GreedyAgent,
     "heuristic": HeuristicAgent,
     "ismcts": ISMCTSAgent,
+    "neural": None,  # built lazily in main() so torch loads only when used
 }
 
 
-def main():
+def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument(
         "agents", nargs="+", choices=sorted(REGISTRY), help="agents to round-robin"
@@ -37,13 +41,29 @@ def main():
     parser.add_argument("--seed", type=int, default=0, help="base seed (default 0)")
     parser.add_argument("--sims", type=int, default=None,
                         help="ismcts simulations per decision (default: agent default)")
-    args = parser.parse_args()
+    parser.add_argument("--ckpt", default=None,
+                        help="checkpoint path for the neural agent (required with it)")
+    parser.add_argument("--temperature", type=float, default=0.0,
+                        help="neural sampling temperature (default 0 = argmax; "
+                             "per-game seeds only affect neural above 0)")
+    args = parser.parse_args(argv)
 
     names = list(dict.fromkeys(args.agents))  # dedupe, keep order
     if len(names) < 2:
         parser.error("need at least two distinct agents")
+    if "neural" in names and args.ckpt is None:
+        parser.error("the neural agent requires --ckpt PATH")
 
     def factory(name):
+        if name == "neural":
+            # Lazy (pulls in torch); load the checkpoint once, not per game.
+            from sweep.rl.agent import NeuralAgent
+            from sweep.rl.model import PolicyValueNet
+            from sweep.rl.ppo import load_checkpoint
+            net = PolicyValueNet()
+            load_checkpoint(args.ckpt, net)
+            return lambda s: NeuralAgent(net=net, seed=s,
+                                         temperature=args.temperature)
         cls = REGISTRY[name]
         if name == "ismcts" and args.sims is not None:
             return lambda s: cls(seed=s, n_sims=args.sims)

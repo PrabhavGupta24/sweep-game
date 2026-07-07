@@ -15,8 +15,8 @@ Resume semantics (--resume PATH): the checkpoint stores the net, optimizer,
 round counter, update counter, the frozen pool, the collection rng state,
 and torch's global RNG state, all of which are restored, so a run split
 into chunks CONTINUES the single long run exactly. Restoring the optimizer
-includes its learning rate, so a different --lr passed alongside --resume
-is ignored (a warning is printed) — there is no cross-chunk lr schedule.
+includes its learning rate; leaving --lr unset keeps it, while an explicit
+--lr on a resumed chunk overrides it (a manual cross-chunk lr schedule).
 With --threads 1 (the
 default) and chunk boundaries that fall on update boundaries (each chunk's
 --rounds a multiple of --batch-rounds; note the final update of a run is
@@ -67,6 +67,9 @@ PRESETS = {
     "default": DEFAULT_OPPONENTS,
     "self": {"self": 1.0},
     "scripted": {"greedy": 0.4, "heuristic": 0.4, "random": 0.2},
+    # For extending a run once the net dominates greedy/random: keep the
+    # gradient coming from the opponent that still wins.
+    "hard": {"self": 0.4, "pool": 0.2, "heuristic": 0.3, "greedy": 0.05, "random": 0.05},
 }
 
 CSV_FIELDS = ["update", "rounds", "seconds", "rounds_per_sec", "policy_loss",
@@ -80,9 +83,9 @@ def parse_args(argv=None):
                    help="total rounds to have collected when done")
     p.add_argument("--out", required=True, help="output dir, e.g. runs/NAME")
     p.add_argument("--seed", type=int, default=0)
-    p.add_argument("--lr", type=float, default=3e-4,
-                   help="Adam learning rate (ignored with --resume: the "
-                        "checkpointed optimizer lr wins)")
+    p.add_argument("--lr", type=float, default=None,
+                   help="Adam learning rate (default 3e-4; unset with --resume "
+                        "keeps the checkpointed lr, explicit value overrides it)")
     p.add_argument("--batch-rounds", type=int, default=64,
                    help="episodes collected per PPO update")
     p.add_argument("--save-every", type=int, default=5000,
@@ -157,7 +160,7 @@ def main(argv=None):
     metrics_path = out / "metrics.csv"
 
     net = PolicyValueNet()
-    optimizer = torch.optim.Adam(net.parameters(), lr=args.lr)
+    optimizer = torch.optim.Adam(net.parameters(), lr=args.lr if args.lr is not None else 3e-4)
     collect_rng = random.Random(args.seed)
     pool_dicts = []  # oldest first, at most --pool-size entries
     rounds_done = 0
@@ -165,10 +168,14 @@ def main(argv=None):
 
     if args.resume:
         meta = load_checkpoint(args.resume, net, optimizer)
-        restored_lr = optimizer.param_groups[0]["lr"]
-        if restored_lr != args.lr:
-            print(f"warning: --resume restored optimizer lr {restored_lr:g}; "
-                  f"--lr {args.lr:g} is ignored", file=sys.stderr)
+        # load_checkpoint restores the checkpointed lr; an explicit --lr on a
+        # resumed chunk overrides it (manual cross-chunk lr schedule).
+        if args.lr is not None and optimizer.param_groups[0]["lr"] != args.lr:
+            print(f"resume: overriding checkpointed lr "
+                  f"{optimizer.param_groups[0]['lr']:g} with --lr {args.lr:g}",
+                  file=sys.stderr)
+            for group in optimizer.param_groups:
+                group["lr"] = args.lr
         rounds_done = meta["rounds_done"]
         update_idx = meta["update_idx"]
         pool_dicts = meta["pool"]
